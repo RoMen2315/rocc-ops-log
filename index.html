@@ -1172,7 +1172,7 @@ function Turnover({data,dayKey:dkv,user,onSave}){
 // MAIN APP
 // ================================================================
 function App(){
-  const [user,setUser]=useState(null);
+  const [user,setUser]=useState(()=>{try{const s=sessionStorage.getItem("rocc_user");return s?JSON.parse(s):null}catch{return null}});
   const [data,setData]=useState(()=>lsGet());
   const [selDay,setSelDay]=useState(tIdx());
   const [weekOff,setWeekOff]=useState(0);
@@ -1371,7 +1371,7 @@ function App(){
     dismissMidnight();
   };
 
-  const switchOp=()=>setUser(null);
+  const switchOp=()=>{setUser(null);try{sessionStorage.removeItem("rocc_user")}catch{}};
   const reset=()=>{if(confirm("Clear ALL local data? This cannot be undone.")){setData({});lsSet({})}};
 
   const refreshNow=async()=>{
@@ -1387,7 +1387,7 @@ function App(){
     else setSyncStatus("error");
   };
 
-  if(!user)return <Login onLogin={setUser} onToggleTheme={toggleTheme} theme={theme}/>;
+  if(!user)return <Login onLogin={(u)=>{setUser(u);try{sessionStorage.setItem("rocc_user",JSON.stringify(u))}catch{}}} onToggleTheme={toggleTheme} theme={theme}/>;
   if(!loaded)return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:ft}}><div style={{textAlign:"center"}}><div className="sp" style={{width:20,height:20,marginBottom:12}}/><div style={{color:C.g,fontSize:13}}>Syncing with Google Sheets...</div></div></div>;
 
   const todayDk=dkf(new Date());

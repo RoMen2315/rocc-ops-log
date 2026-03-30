@@ -64,7 +64,7 @@ const isOnline=SCRIPT_URL&&!SCRIPT_URL.includes("PASTE_YOUR");
 async function gsGetAll(){
   if(!isOnline)return null;
   try{
-    const r=await fetch(SCRIPT_URL+"?action=getAll",{redirect:"follow"});
+    const r=await fetch(SCRIPT_URL+"?action=getAll&t="+Date.now(),{redirect:"follow",cache:"no-store"});
     if(!r.ok)return null;
     const j=await r.json();
     const out={};

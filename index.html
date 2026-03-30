@@ -1227,13 +1227,16 @@ function App(){
     if(!isOnline){setSyncStatus("offline");setLoaded(true);return}
     setSyncStatus("loading");
     gsGetAll().then(remote=>{
+      console.log("[ROCC init] Remote data:",remote?Object.keys(remote):"null");
       if(remote&&Object.keys(remote).length>0){
+        const today=dkf(new Date());
+        console.log("[ROCC init] Today key:",today,"shifts:",remote[today]?.shifts);
         const local=lsGet();
         const merged=deepMerge(local,remote);
-        if(JSON.stringify(merged)!==JSON.stringify(local)){setData(merged);lsSet(merged)}
+        setData(merged);lsSet(merged);
       }
       setSyncStatus("ok");setLastSync(Date.now());setLoaded(true);
-    }).catch(()=>{setSyncStatus("error");setLoaded(true)});
+    }).catch(e=>{console.error("[ROCC init] Error",e);setSyncStatus("error");setLoaded(true)});
   },[]);
 
   // Auto-refresh on all tabs to keep multi-user data in sync
@@ -1244,15 +1247,17 @@ function App(){
     const iv=setInterval(()=>{
       gsGetAll().then(remote=>{
         if(remote&&Object.keys(remote).length>0){
-          let changed=false;
+          console.log("[ROCC sync] Remote keys:",Object.keys(remote),"shifts:",Object.values(remote).map(v=>v?.shifts?.length||0));
           setData(prev=>{
             const merged=deepMerge(prev,remote);
-            if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
-            changed=true;lsSet(merged);return merged;
+            if(JSON.stringify(merged)===JSON.stringify(prev)){console.log("[ROCC sync] No changes");return prev}
+            console.log("[ROCC sync] Data updated");
+            lsSet(merged);
+            setSyncStatus("ok");setLastSync(Date.now());
+            return merged;
           });
-          if(changed){setSyncStatus("ok");setLastSync(Date.now())}
-        }
-      }).catch(()=>{});
+        }else{console.log("[ROCC sync] Empty response")}
+      }).catch(e=>{console.error("[ROCC sync] Error",e)});
     },15000);
     return()=>clearInterval(iv);
   },[isOnline]);

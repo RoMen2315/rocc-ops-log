@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROCC Operations Log - AES Clean Energy</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2838'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='%2300e5a0' font-family='monospace' font-weight='bold'>R</text></svg>">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Courier New',Consolas,monospace;background:#0b0f15;color:#c8d3e0;transition:background .3s,color .3s}
+body.light{background:#f0f2f5;color:#1a1a2e}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#131a24}
+body.light ::-webkit-scrollbar-track{background:#e5e7eb}
+::-webkit-scrollbar-thumb{background:#2a3a50;border-radius:3px}
+body.light ::-webkit-scrollbar-thumb{background:#9ca3af;border-radius:3px}
+input,select,button{font-family:inherit}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+input[type=number]{-moz-appearance:textfield}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sp{display:inline-block;width:10px;height:10px;border:2px solid #ffb020;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:0.3}}
+.flash{animation:flash 1.2s ease-in-out infinite}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 4px #ffb02066}50%{box-shadow:0 0 12px #ffb020cc}}
+.slot-now{animation:pulse-border 2s ease-in-out infinite}
+@keyframes alarm-glow{0%,100%{box-shadow:0 0 20px #ff406066}50%{box-shadow:0 0 50px #ff4060cc}}
+.alarm-box{animation:alarm-glow 1.5s ease-in-out infinite}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useCallback,useRef,useMemo}=React;
+
+// ================================================================
+// GOOGLE APPS SCRIPT URL - paste yours between the quotes
+// ================================================================
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbxL1coFx0N_OxO1PIM_gr8BWpsl-Sz7wq6ADI2Efu4H5KHXeeh4GqOKVoNsjRW2P-xgCw/exec";
+// ================================================================
+
+const ft="'Courier New',Consolas,monospace";
+const DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const DS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const THEMES={
+  dark:{bg:"#0b0f15",s:"#131a24",s2:"#1a2332",brd:"#1f2b3a",brd2:"#2a3a50",txt:"#c8d3e0",dim:"#4a5a70",
+    g:"#00e5a0",gd:"#00e5a018",y:"#ffb020",r:"#ff4060",b:"#3090ff",p:"#8060ff",o:"#ff8844",
+    white:"#fff",inputBg:"#0b0f15",headerBg:"#131a24"},
+  light:{bg:"#f0f2f5",s:"#ffffff",s2:"#f7f8fa",brd:"#d0d5dd",brd2:"#b8c0cc",txt:"#1a1a2e",dim:"#6b7280",
+    g:"#059669",gd:"#05966818",y:"#d97706",r:"#dc2626",b:"#2563eb",p:"#7c3aed",o:"#ea580c",
+    white:"#1a1a2e",inputBg:"#ffffff",headerBg:"#ffffff"}
+};
+let C=THEMES[localStorage.getItem("rocc_theme")||"dark"]||THEMES.dark;
+const ThemeCtx=React.createContext("dark");
+function useThemeMode(){return React.useContext(ThemeCtx)}
+
+// ================================================================
+// GOOGLE SHEETS SYNC
+// ================================================================
+const isOnline=SCRIPT_URL&&!SCRIPT_URL.includes("PASTE_YOUR");
+
+async function gsGetAll(){
+  if(!isOnline)return null;
+  try{
+    const r=await fetch(SCRIPT_URL+"?action=getAll",{redirect:"follow"});
+    if(!r.ok)return null;
+    const j=await r.json();
+    const out={};
+    Object.entries(j.data||{}).forEach(([k,v])=>{try{out[k]=JSON.parse(v)}catch{out[k]=v}});
+    return out;
+  }catch(e){console.error("gsGetAll",e);return null}
+}
+
+async function gsSet(key,value,userName){
+  if(!isOnline)return false;
+  try{
+    const r=await fetch(SCRIPT_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"merge",key,value:JSON.stringify(value),user:userName||""})});
+    if(!r.ok){console.error("gsSet HTTP",r.status);return false}
+    try{const j=await r.json();if(!j.success){console.error("gsSet fail",j.error);return false}}catch{}
+    return true;
+  }catch(e){console.error("gsSet",e);return false}
+}
+
+// Local storage cache
+function lsGet(){try{return JSON.parse(localStorage.getItem("rocc8")||"{}")}catch{return {}}}
+function lsSet(d){try{localStorage.setItem("rocc8",JSON.stringify(d))}catch{}}
+
+// ================================================================
+// SITE CONFIGS (CORRECT NODE NUMBERS)
+// ================================================================
+const BESS_SITES=[
+  {id:"lab",n:"LAB",max:108,out:92},
+  {id:"luna",n:"Luna",max:90,out:70},
+  {id:"race",n:"Raceway",max:63,out:54},
+  {id:"est",n:"Estrella",max:24,out:13},
+  {id:"mcfa",n:"MCF A",max:84,out:69},
+  {id:"mcfb",n:"MCF B",max:232,out:221},
+  {id:"mcfc",n:"MCF C",max:185,out:174},
+  {id:"ww1",n:"Westwing 1",max:75,out:67},
+  {id:"ww2",n:"Westwing 2",max:123,out:90},
+  {id:"bm",n:"Baldy Mesa",max:87,out:80},
+  {id:"sp",n:"Silver Peak",max:30,out:26},
+];
+
+const AVAIL_SLOTS=["0000","0400","0600","0800","1000","1200","1400","1600","1800","2000","2200"];
+const AVAIL_LBL=["00:00","04:00","06:00","08:00","10:00","12:00","14:00","16:00","18:00","20:00","22:00"];
+const CTRL_SLOTS=["1000","1500","2000"];
+const CTRL_LBL=["10:00","15:00","20:00"];
+
+const CAPV_BEACONS=[{id:"b1",n:"Beacon 1"},{id:"b3",n:"Beacon 3"},{id:"b4",n:"Beacon 4"}];
+const CAPV_BIGSKY=[
+  {id:"ae1b",n:"Antelope Exp 1B"},{id:"ae2",n:"Antelope Exp 2"},{id:"ae3a",n:"Antelope Exp 3A"},{id:"ae3b",n:"Antelope Exp 3B"},
+  {id:"bsa",n:"Bayshore A"},{id:"bsb",n:"Bayshore B"},{id:"bsc",n:"Bayshore C"},
+  {id:"dsr1",n:"DSR-1"},{id:"dsr2",n:"DSR-2"},{id:"dsr3",n:"DSR-3"},
+  {id:"elc",n:"Elevation C"},{id:"spr",n:"San Pablo Raceway"},{id:"sol1",n:"Solverde 1"},
+  {id:"sum",n:"Summer Solar"},{id:"wab",n:"WABSR-B"},
+];
+const CAPV_SLOTS=["1000","1200","1500"];
+const CAPV_LBL=["10:00","12:00","15:00"];
+
+const VVAR_SITES=[{id:"bell",n:"Bellefield"},{id:"rex",n:"Rexford"}];
+const VVAR_SLOTS=["0800","1000","1200","1700","1900","2100"];
+const VVAR_LBL=["08:00","10:00","12:00","17:00","19:00","21:00"];
+
+const SBESS_SLOTS=["0100","0400","0600","0800","1000","1200","1400","1700","1900","2100","2300"];
+const SBESS_LBL=["01:00","04:00","06:00","08:00","10:00","12:00","14:00","17:00","19:00","21:00","23:00"];
+
+const RANDO_AZ=[{id:"cls",n:"Central Line Solar"},{id:"el",n:"East Line"},{id:"wl",n:"West Line"}];
+const RANDO_MCF=[{id:"mcfapv",n:"McFarland A PV"},{id:"mcfbpv",n:"McFarland B PV"}];
+const RANDO_RR=[{id:"rrmw",n:"Road Runner MW"},{id:"rrmvar",n:"RR Reactive Power"},{id:"rrkv",n:"RR PQM-2 Line kV"},{id:"rrturb",n:"# Avail Turbines"},{id:"rronl",n:"# Turbines Online"},{id:"rrcurt",n:"Basin Curtailment"},{id:"rravr",n:"AVR Status"}];
+const RANDO_KAUAI=[{id:"law_inv",n:"Lawai # Inv"},{id:"law_soc",n:"Lawai SOC%"},{id:"law_tgt",n:"Lawai Tgt"},{id:"kek_inv",n:"Kekaha # Inv"},{id:"kek_soc",n:"Kekaha SOC%"},{id:"kek_tgt",n:"Kekaha Tgt"}];
+const RANDO_SLOTS=["1000","1500"];
+const RANDO_LBL=["10:00","15:00"];
+
+const SUB_SITES=[{id:"ham",n:"Hamlin"},{id:"sg",n:"Scorpion Gulch"},{id:"hm",n:"High Mesa"},{id:"mc",n:"Mamm Creek"},{id:"rob",n:"Robot"},{id:"bell_s",n:"Bellefield"}];
+const SUB_SLOTS=["0800","1200","1500","1900","2300","0400"];
+const SUB_LBL=["08:00","12:00","15:00","19:00","23:00","04:00"];
+
+// ================================================================
+// SECTION DEFINITIONS
+// ================================================================
+const SECTIONS=[
+  {id:"bess_avail",label:"BESS Avail",color:C.g,desc:"#N/C + SOC",sites:BESS_SITES,slots:AVAIL_SLOTS,slotLabels:AVAIL_LBL,
+    fields:[{id:"nc",label:"# N/C",color:C.g,type:"number",step:"1",w:38,alert:"out"},{id:"soc",label:"% SOC",color:C.y,type:"number",step:"0.1",w:38}],
+    siteExtra:{label:"Max/Out"}},
+  {id:"bess_ctrl",label:"BESS Ctrl",color:C.b,desc:"V/VAR ADS Comms",sites:BESS_SITES,slots:CTRL_SLOTS,slotLabels:CTRL_LBL,
+    fields:[{id:"vvar",label:"V/VAR",color:C.g,w:38},{id:"ads",label:"ADS",color:C.b,w:38},{id:"pmax",label:"P,max",color:C.p,w:38},{id:"emax",label:"E,max",color:C.y,w:38},{id:"pcomm",label:"(P)Com",w:38},{id:"acomm",label:"(A)Com",w:38}]},
+  {id:"ca_beacon",label:"CA Beacon",color:C.o,desc:"PF + Curt",sites:CAPV_BEACONS,slots:CAPV_SLOTS,slotLabels:CAPV_LBL,
+    fields:[{id:"pf",label:"PF",color:C.g,w:36},{id:"curt",label:"Curt",color:C.r,w:36}]},
+  {id:"ca_bigsky",label:"CA Big Sky",color:C.o,desc:"VARs Y/N",sites:CAPV_BIGSKY,slots:CAPV_SLOTS,slotLabels:CAPV_LBL,
+    fields:[{id:"vars",label:"Y/N",color:C.g,w:36}]},
+  {id:"vvar_checks",label:"V/VAR Chk",color:C.p,desc:"Bell+Rex",sites:VVAR_SITES,slots:VVAR_SLOTS,slotLabels:VVAR_LBL,
+    fields:[{id:"volt",label:"Volt kV",color:C.g,type:"number",step:"0.1",w:48},{id:"mvar",label:"MVAR SP",color:C.y,w:42},{id:"ads",label:"ADS",color:C.b,w:38}]},
+  {id:"site_bess",label:"Site BESS",color:C.y,desc:"Bell+Rex",sites:VVAR_SITES,slots:SBESS_SLOTS,slotLabels:SBESS_LBL,
+    fields:[{id:"nc",label:"# N/C",color:C.g,type:"number",step:"1",w:38},{id:"soc",label:"SOC%",color:C.y,type:"number",step:"0.1",w:38},{id:"inv",label:"#INV",color:C.p,type:"number",step:"1",w:36},{id:"am",label:"A/M",w:32}]},
+  {id:"rando_az",label:"AZ Sites",color:C.r,desc:"VARs",sites:RANDO_AZ,slots:RANDO_SLOTS,slotLabels:RANDO_LBL,
+    fields:[{id:"vars",label:"Y/N",color:C.g,w:36}]},
+  {id:"rando_mcf",label:"MCF PV",color:C.r,desc:"MVAR+ADS",sites:RANDO_MCF,slots:RANDO_SLOTS,slotLabels:RANDO_LBL,
+    fields:[{id:"mvar",label:"MVAR",color:C.y,w:42},{id:"ads",label:"ADS",color:C.b,w:38}]},
+  {id:"rando_misc",label:"RR/Kauai",color:C.r,desc:"Misc",sites:[...RANDO_RR,...RANDO_KAUAI],slots:RANDO_SLOTS,slotLabels:RANDO_LBL,
+    fields:[{id:"val",label:"Value",w:50}]},
+  {id:"subs",label:"Substations",color:C.dim,desc:"Breaker Checks",sites:SUB_SITES,slots:SUB_SLOTS,slotLabels:SUB_LBL,
+    fields:[{id:"sat",label:"SAT",color:C.g,w:34},{id:"notes",label:"Notes",w:80}]},
+];
+
+// ================================================================
+// UTILS
+// ================================================================
+function getWS(d){const dt=new Date(d);const day=dt.getDay();dt.setDate(dt.getDate()-day+(day===0?-6:1));dt.setHours(0,0,0,0);return dt}
+function dkf(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function getDD(ws,i){const d=new Date(ws);d.setDate(d.getDate()+i);return d}
+function fS(d){return d.toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+function fL(d){return d.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
+function tIdx(){return(new Date().getDay()+6)%7}
+function fT(ts){return new Date(ts).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}
+function curHr(){return new Date().getHours()}
+function pct(n,d){return d>0?Math.round(n/d*100):0}
+
+// Deep merge for sync: merges at day > section > site > slot level
+function deepMerge(local,remote){
+  const m={...local};
+  Object.entries(remote).forEach(([dk,rv])=>{
+    if(rv&&typeof rv==="object"&&!Array.isArray(rv)){
+      m[dk]={...(m[dk]||{})};
+      Object.entries(rv).forEach(([sk,sv])=>{
+        if(sk==="shifts"){m[dk].shifts=sv}
+        else if(sv&&typeof sv==="object"&&!Array.isArray(sv)){
+          m[dk][sk]={...(m[dk][sk]||{})};
+          Object.entries(sv).forEach(([siteId,siteData])=>{
+            if(siteData&&typeof siteData==="object"&&!Array.isArray(siteData)){
+              m[dk][sk][siteId]={...(m[dk][sk][siteId]||{})};
+              Object.entries(siteData).forEach(([slot,slotData])=>{
+                if(slotData&&typeof slotData==="object"&&!Array.isArray(slotData)){
+                  m[dk][sk][siteId][slot]={...(m[dk][sk][siteId][slot]||{}),...slotData};
+                }else{m[dk][sk][siteId][slot]=slotData}
+              });
+            }else{m[dk][sk][siteId]=siteData}
+          });
+        }else{m[dk][sk]=sv}
+      });
+    }else{m[dk]=rv}
+  });
+  return m;
+}
+
+// Check if a time slot should be expected given current hour and whether viewing a past day
+function slotExpected(slotStr,h,viewingPast){
+  if(viewingPast)return true;
+  const sh=parseInt(slotStr)/100;
+  if(h<6&&sh>=18)return true; // after midnight, late-night slots from "yesterday" are expected
+  if(sh<=h)return true;
+  return false;
+}
+
+// ================================================================
+// LOGIN
+// ================================================================
+function Login({onLogin,onToggleTheme,theme}){
+  const [name,setName]=useState("");
+  const [role,setRole]=useState("CRO 2");
+  const [shift,setShift]=useState("Night");
+  const go=()=>name.trim()&&onLogin({name:name.trim(),role,shift,loginTime:Date.now()});
+  const is={width:"100%",padding:"10px 12px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:5,color:C.white,fontSize:14,fontFamily:ft,outline:"none",boxSizing:"border-box"};
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:ft}}>
+      <div style={{width:380,padding:36,background:C.s,border:"1px solid "+C.brd,borderRadius:8}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:10,letterSpacing:6,color:C.g,textTransform:"uppercase",marginBottom:6}}>AES Clean Energy</div>
+          <div style={{fontSize:22,fontWeight:700,color:C.white}}>ROCC Operations Log</div>
+          <div style={{fontSize:11,color:C.dim,marginTop:6}}>Control Center - All Sites</div>
+          <div style={{fontSize:9,color:C.dim,marginTop:10}}>Developed by Rocky Dev Co.</div>
+        </div>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Operator Name / Initials</div>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" onKeyDown={e=>e.key==="Enter"&&go()} style={is}/>
+        </div>
+        <div style={{display:"flex",gap:10,marginBottom:24}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Role</div>
+            <select value={role} onChange={e=>setRole(e.target.value)} style={{...is,cursor:"pointer"}}>
+              <option>Operator</option><option>CRO 1</option><option>CRO 2</option><option>Shift Lead</option><option>Engineer</option><option>Manager</option>
+            </select></div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Shift</div>
+            <select value={shift} onChange={e=>setShift(e.target.value)} style={{...is,cursor:"pointer"}}>
+              <option value="Day">Day (0600-1800)</option><option value="Night">Night (1800-0600)</option>
+            </select></div>
+        </div>
+        <button onClick={go} disabled={!name.trim()} style={{width:"100%",padding:12,background:name.trim()?C.g:C.brd,color:name.trim()?C.bg:C.dim,border:"none",borderRadius:5,fontSize:12,fontWeight:700,fontFamily:ft,letterSpacing:2,textTransform:"uppercase",cursor:name.trim()?"pointer":"not-allowed"}}>Sign In</button>
+        {onToggleTheme&&<div style={{textAlign:"center",marginTop:14}}>
+          <button onClick={onToggleTheme} style={{padding:"5px 14px",background:"transparent",border:"1px solid "+C.brd,borderRadius:4,color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer"}}>{theme==="dark"?"\u2600 Light Mode":"🌙 Dark Mode"}</button>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// SHARED UI COMPONENTS (must be outside render functions to preserve identity)
+// ================================================================
+function Box({children,span}){return <div style={{background:C.s,border:"1px solid "+C.brd,borderRadius:6,padding:14,gridColumn:span||"auto"}}>{children}</div>}
+function SH({children,color}){return <div style={{fontSize:10,color:color||C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:10,fontWeight:700}}>{children}</div>}
+function Bar({pct:p,color,h:height}){return <div style={{width:"100%",height:height||6,background:C.bg,borderRadius:3,overflow:"hidden"}}><div style={{width:Math.min(p,100)+"%",height:"100%",background:color||C.g,borderRadius:3}}/></div>}
+
+// Sparkline SVG chart
+function Spark({vals,labels,w:width,h:height,min:forceMin,max:forceMax,thresholds,showArea,showDots}){
+  const W=width||200,H=height||50,pad=4;
+  const pts=vals.map((v,i)=>({v,i,label:labels?labels[i]:""})).filter(p=>p.v!=null);
+  if(pts.length<2)return <svg width={W} height={H}><text x={W/2} y={H/2+3} textAnchor="middle" fill={C.dim} fontSize={9} fontFamily={ft}>No data</text></svg>;
+  const mn=forceMin!=null?forceMin:Math.min(...pts.map(p=>p.v));
+  const mx=forceMax!=null?forceMax:Math.max(...pts.map(p=>p.v));
+  const range=mx-mn||1;
+  const xStep=(W-pad*2)/(vals.length-1);
+  const yOf=v=>pad+(1-(v-mn)/range)*(H-pad*2);
+  const coords=pts.map(p=>({x:pad+p.i*xStep,y:yOf(p.v),v:p.v,label:p.label}));
+  const line=coords.map((c,i)=>(i===0?"M":"L")+c.x.toFixed(1)+","+c.y.toFixed(1)).join(" ");
+  const area=line+" L"+coords[coords.length-1].x.toFixed(1)+","+(H-pad)+" L"+coords[0].x.toFixed(1)+","+(H-pad)+" Z";
+  // Threshold zones
+  const zones=[];
+  if(thresholds){
+    thresholds.forEach(t=>{
+      const y1=t.max!=null?yOf(Math.min(t.max,mx)):pad;
+      const y2=t.min!=null?yOf(Math.max(t.min,mn)):H-pad;
+      if(y2>y1)zones.push(<rect key={t.color} x={pad} y={y1} width={W-pad*2} height={y2-y1} fill={t.color} opacity={0.08} rx={2}/>);
+    });
+  }
+  const lineColor=coords[coords.length-1].v>=80?C.g:coords[coords.length-1].v>=50?C.y:coords[coords.length-1].v>=20?C.o:C.r;
+  return(
+    <svg width={W} height={H} style={{display:"block"}}>
+      {zones}
+      {showArea&&<path d={area} fill={lineColor} opacity={0.1}/>}
+      <path d={line} fill="none" stroke={lineColor} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
+      {showDots!==false&&coords.map((c,i)=>{
+        const col=c.v>=80?C.g:c.v>=50?C.y:c.v>=20?C.o:C.r;
+        return <circle key={i} cx={c.x} cy={c.y} r={2.5} fill={col} stroke={C.s} strokeWidth={1}>
+          <title>{c.label?c.label+": ":""}{c.v}%</title>
+        </circle>;
+      })}
+    </svg>
+  );
+}
+
+// ================================================================
+// SHIFT NOTES (standalone component to preserve state across re-renders)
+// ================================================================
+function ShiftNotes({notes,user,onSaveNote}){
+  const [draft,setDraft]=useState("");
+  const inputRef=useRef(null);
+  const addNote=()=>{
+    if(!draft.trim())return;
+    onSaveNote({text:draft.trim(),user:user.name,role:user.role,ts:Date.now()});
+    setDraft("");
+    setTimeout(()=>inputRef.current?.focus(),50);
+  };
+  return(<div>
+    <div style={{display:"flex",gap:8,marginBottom:10}}>
+      <input ref={inputRef} value={draft} onChange={e=>setDraft(e.target.value)}
+        onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addNote()}}}
+        placeholder="Add a note (handoff info, issues, reminders...)"
+        style={{flex:1,padding:"8px 12px",background:C.bg,border:"1px solid "+C.brd,borderRadius:5,color:C.white,fontSize:12,fontFamily:ft,outline:"none"}}
+      />
+      <button onClick={addNote} disabled={!draft.trim()}
+        style={{padding:"8px 18px",background:draft.trim()?C.y:C.brd,color:draft.trim()?C.bg:C.dim,border:"none",borderRadius:5,fontSize:11,fontWeight:700,fontFamily:ft,cursor:draft.trim()?"pointer":"not-allowed",letterSpacing:1,whiteSpace:"nowrap"}}>Add Note</button>
+    </div>
+    {notes.length===0?<div style={{fontSize:11,color:C.dim}}>No notes yet. Add shift handoff info, issues, or reminders.</div>:
+    <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:250,overflowY:"auto"}}>{notes.slice().reverse().map((n,i)=>
+      <div key={i} style={{background:C.bg,border:"1px solid "+C.brd,borderRadius:5,padding:"8px 12px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+          <div><span style={{fontSize:11,fontWeight:700,color:C.g}}>{n.user}</span><span style={{fontSize:9,color:C.dim,marginLeft:6}}>{n.role}</span></div>
+          <div style={{fontSize:9,color:C.dim}}>{n.ts?new Date(n.ts).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
+        </div>
+        <div style={{fontSize:12,color:C.white,lineHeight:"1.4"}}>{n.text}</div>
+      </div>)}</div>}
+  </div>);
+}
+
+// ================================================================
+// DASHBOARD
+// ================================================================
+function Dashboard({data,dayKey:dkv,user,onSaveNote}){
+  const dd=data[dkv]||{};
+  const avail=dd.bess_avail||{};
+  const subs=dd.subs||{};
+  const shifts=dd.shifts||[];
+  const h=curHr();
+  const viewingPast=dkv<dkf(new Date());
+
+  // Alerts
+  const alerts=[];
+  BESS_SITES.forEach(site=>{
+    const sd=avail[site.id]||{};let lnc=null,lsl=null;
+    AVAIL_SLOTS.forEach(sl=>{if(sd[sl]?.nc!=null&&sd[sl].nc!==""){lnc=parseFloat(sd[sl].nc);lsl=sl}});
+    if(lnc!=null&&lnc<=site.out)alerts.push({site:site.n,nc:lnc,max:site.max,out:site.out,slot:lsl});
+  });
+
+  // SOC heatmap (BESS sites + Bellefield/Rexford from site_bess)
+  const siteBess=dd.site_bess||{};
+  const socData=BESS_SITES.map(site=>{
+    const sd=avail[site.id]||{};
+    const vals=AVAIL_SLOTS.map(sl=>{const v=sd[sl]?.soc;return v!=null&&v!==""?parseFloat(v):null});
+    const lat=vals.filter(v=>v!=null);
+    return{site:site.n,id:site.id,vals,latest:lat.length?lat[lat.length-1]:null,slots:AVAIL_SLOTS,slotLabels:AVAIL_LBL};
+  });
+  // Add Bellefield & Rexford from Site BESS section
+  VVAR_SITES.forEach(site=>{
+    const sd=siteBess[site.id]||{};
+    const vals=SBESS_SLOTS.map(sl=>{const v=sd[sl]?.soc;return v!=null&&v!==""?parseFloat(v):null});
+    const lat=vals.filter(v=>v!=null);
+    socData.push({site:site.n,id:site.id,vals,latest:lat.length?lat[lat.length-1]:null,slots:SBESS_SLOTS,slotLabels:SBESS_LBL,isSiteBess:true});
+  });
+
+  // Missing
+  const eAS=AVAIL_SLOTS.filter(sl=>slotExpected(sl,h,viewingPast));
+  const missingAvail=[];
+  BESS_SITES.forEach(site=>{const sd=avail[site.id]||{};eAS.forEach(sl=>{if(!sd[sl]||sd[sl].nc==null||sd[sl].nc==="")missingAvail.push({site:site.n,slot:AVAIL_LBL[AVAIL_SLOTS.indexOf(sl)]})})});
+  const eSS=SUB_SLOTS.filter(sl=>slotExpected(sl,h,viewingPast));
+  const missingSubs=[];
+  SUB_SITES.forEach(site=>{const sd=subs[site.id]||{};eSS.forEach(sl=>{if(!sd[sl]||!sd[sl].sat||sd[sl].sat==="")missingSubs.push({site:site.n,slot:SUB_LBL[SUB_SLOTS.indexOf(sl)]})})});
+
+  // Node trend (BESS sites + Bellefield/Rexford)
+  const nodeTrend=BESS_SITES.map(site=>{const sd=avail[site.id]||{};return{site:site.n,max:site.max,out:site.out,vals:AVAIL_SLOTS.map(sl=>{const v=sd[sl]?.nc;return v!=null&&v!==""?parseFloat(v):null}),slots:AVAIL_SLOTS,slotLabels:AVAIL_LBL}});
+  VVAR_SITES.forEach(site=>{
+    const sd=siteBess[site.id]||{};
+    const vals=SBESS_SLOTS.map(sl=>{const v=sd[sl]?.nc;return v!=null&&v!==""?parseFloat(v):null});
+    nodeTrend.push({site:site.n,max:null,out:null,vals,slots:SBESS_SLOTS,slotLabels:SBESS_LBL,isSiteBess:true});
+  });
+
+  // Completion
+  const compSecs=[
+    {name:"BESS Avail",key:"bess_avail",sites:BESS_SITES,slots:AVAIL_SLOTS,fields:["nc","soc"]},
+    {name:"BESS Ctrl",key:"bess_ctrl",sites:BESS_SITES,slots:CTRL_SLOTS,fields:["vvar","ads"]},
+    {name:"CA Beacon",key:"ca_beacon",sites:CAPV_BEACONS,slots:CAPV_SLOTS,fields:["pf"]},
+    {name:"CA Big Sky",key:"ca_bigsky",sites:CAPV_BIGSKY,slots:CAPV_SLOTS,fields:["vars"]},
+    {name:"Substations",key:"subs",sites:SUB_SITES,slots:SUB_SLOTS,fields:["sat"]},
+  ];
+  const completion=compSecs.map(sec=>{
+    const sd=dd[sec.key]||{};let total=0,filled=0;
+    const eSl=sec.slots.filter(sl=>slotExpected(sl,h,viewingPast));
+    sec.sites.forEach(site=>{eSl.forEach(sl=>{sec.fields.forEach(f=>{total++;if(sd[site.id]?.[sl]?.[f]!=null&&sd[site.id][sl][f]!=="")filled++})})});
+    return{name:sec.name,total,filled,pct:pct(filled,total)};
+  });
+  const tAll=completion.reduce((a,c)=>a+c.total,0);
+  const fAll=completion.reduce((a,c)=>a+c.filled,0);
+
+  // Outage log
+  const outageLog=[];
+  BESS_SITES.forEach(site=>{const sd=avail[site.id]||{};AVAIL_SLOTS.forEach((sl,i)=>{const nc=sd[sl]?.nc;if(nc!=null&&nc!==""&&parseFloat(nc)<=site.out)outageLog.push({site:site.n,slot:AVAIL_LBL[i],nc:parseFloat(nc),out:site.out,max:site.max,user:sd[sl]._user||"--"})})});
+
+  // Sub completion
+  const subComp=SUB_SITES.map(site=>{const sd=subs[site.id]||{};const done=SUB_SLOTS.filter(sl=>sd[sl]?.sat&&sd[sl].sat!=="").length;return{site:site.n,done,total:SUB_SLOTS.length,pct:pct(done,SUB_SLOTS.length)}});
+
+  // Activity log: who entered what, when
+  const activity=[];
+  SECTIONS.forEach(sec=>{
+    const sd=dd[sec.id]||{};
+    sec.sites.forEach(site=>{
+      sec.slots.forEach((sl,si)=>{
+        const slotData=sd[site.id]?.[sl];
+        if(slotData&&slotData._user){
+          activity.push({section:sec.label,site:site.n,slot:sec.slotLabels[si],user:slotData._user,ts:slotData._ts,color:sec.color});
+        }
+      });
+    });
+  });
+  activity.sort((a,b)=>(b.ts||0)-(a.ts||0));
+
+  const socColor=v=>{if(v==null)return C.dim+"33";if(v>=80)return C.g;if(v>=50)return C.y;if(v>=20)return C.o;return C.r};
+
+  const heatCell=(v,colorFn)=><div style={{width:28,height:22,borderRadius:3,display:"flex",alignItems:"center",justifyContent:"center",background:v!=null?colorFn(v)+"22":"transparent",border:"1px solid "+(v!=null?colorFn(v)+"44":C.brd+"44"),fontSize:9,fontWeight:v!=null?600:400,color:v!=null?colorFn(v):C.dim+"44",margin:"0 auto"}}>{v!=null?v:"--"}</div>;
+
+  const thS={padding:"4px 8px",textAlign:"left",fontSize:8,color:C.dim,letterSpacing:2,borderBottom:"1px solid "+C.brd,textTransform:"uppercase"};
+  const thC={padding:"4px 3px",textAlign:"center",fontSize:8,color:C.dim,borderBottom:"1px solid "+C.brd};
+
+  return(
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+      {/* Alerts */}
+      <Box><SH color={alerts.length?C.r:C.g}>{alerts.length?alerts.length+" OUTAGE ALERT"+(alerts.length>1?"S":""):"\u2713 ALL SITES NOMINAL"}</SH>
+        {alerts.length>0?<div style={{display:"flex",flexDirection:"column",gap:6}}>{alerts.map((a,i)=>
+          <div key={i} style={{background:C.r+"18",border:"1px solid "+C.r+"44",borderRadius:4,padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><div style={{fontSize:12,fontWeight:700,color:C.r}}>{a.site}</div><div style={{fontSize:9,color:C.dim}}>at {AVAIL_LBL[AVAIL_SLOTS.indexOf(a.slot)]}</div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:18,fontWeight:700,color:C.r}}>{a.nc}<span style={{fontSize:10,fontWeight:400}}>/{a.max}</span></div><div style={{fontSize:8,color:C.r}}>OUTAGE {"\u2264"}{a.out}</div></div>
+          </div>)}</div>
+        :<div style={{fontSize:11,color:C.g}}>All BESS sites above outage thresholds</div>}
+      </Box>
+
+      {/* Shift */}
+      <Box><SH>Shift Handoff</SH>
+        {shifts.length>0?<div style={{display:"flex",flexDirection:"column",gap:6}}>{shifts.map((s,i)=>
+          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",background:C.bg,borderRadius:4,border:"1px solid "+(s.name===user.name?C.g+"66":C.brd)}}>
+            <div><div style={{fontSize:12,fontWeight:600,color:s.name===user.name?C.g:C.white}}>{s.name}</div><div style={{fontSize:9,color:C.dim}}>{s.role}</div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:11,color:s.shift==="Day"?C.y:C.b,fontWeight:600}}>{s.shift}</div><div style={{fontSize:9,color:C.dim}}>{fT(s.loginTime)}</div></div>
+          </div>)}</div>
+        :<div style={{fontSize:11,color:C.dim}}>No operators yet</div>}
+        <div style={{marginTop:8,fontSize:9,color:C.dim,borderTop:"1px solid "+C.brd,paddingTop:6}}>Current: <span style={{color:h>=6&&h<18?C.y:C.b,fontWeight:600}}>{h>=6&&h<18?"Day":"Night"} Shift</span></div>
+      </Box>
+
+      {/* Completion */}
+      <Box><SH>Overall Completion</SH>
+        <div style={{textAlign:"center",marginBottom:10}}>
+          <div style={{fontSize:32,fontWeight:700,color:pct(fAll,tAll)>=90?C.g:pct(fAll,tAll)>=60?C.y:C.r}}>{pct(fAll,tAll)}%</div>
+          <div style={{fontSize:9,color:C.dim}}>{fAll}/{tAll} readings</div></div>
+        <Bar pct={pct(fAll,tAll)} color={pct(fAll,tAll)>=90?C.g:pct(fAll,tAll)>=60?C.y:C.r} h={8}/>
+        <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:4}}>{completion.map(c=>
+          <div key={c.name} style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{fontSize:9,color:C.dim,width:75,flexShrink:0}}>{c.name}</div>
+            <div style={{flex:1}}><Bar pct={c.pct} color={c.pct>=90?C.g:c.pct>=60?C.y:C.r}/></div>
+            <div style={{fontSize:10,fontWeight:600,color:c.pct>=90?C.g:c.pct>=60?C.y:C.r,width:32,textAlign:"right"}}>{c.pct}%</div>
+          </div>)}</div>
+      </Box>
+
+      {/* SOC Heatmap */}
+      <Box span="span 2"><SH color={C.y}>SOC Heatmap - All BESS (24hr)</SH>
+        <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",width:"100%",minWidth:600}}>
+          <thead><tr><th style={thS}>Site</th>{AVAIL_LBL.map(l=><th key={l} style={thC}>{l}</th>)}<th style={thC}>Latest</th></tr></thead>
+          <tbody>{socData.filter(s=>!s.isSiteBess).map(s=><tr key={s.id}>
+            <td style={{padding:"4px 8px",fontSize:10,fontWeight:600,color:C.white,whiteSpace:"nowrap"}}>{s.site}</td>
+            {s.vals.map((v,i)=><td key={i} style={{padding:"3px 2px",textAlign:"center"}}>{heatCell(v,socColor)}</td>)}
+            <td style={{padding:"3px 6px",textAlign:"center",fontSize:13,fontWeight:700,color:socColor(s.latest)}}>{s.latest!=null?s.latest+"%":"--"}</td>
+          </tr>)}</tbody>
+        </table>
+        {/* Bellefield & Rexford (different time slots) */}
+        <div style={{borderTop:"1px solid "+C.brd,marginTop:6,paddingTop:6}}>
+          <div style={{fontSize:8,color:C.p,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Site BESS (Bellefield / Rexford)</div>
+          <table style={{borderCollapse:"collapse",width:"100%"}}>
+            <thead><tr><th style={thS}>Site</th>{SBESS_LBL.map(l=><th key={l} style={thC}>{l}</th>)}<th style={thC}>Latest</th></tr></thead>
+            <tbody>{socData.filter(s=>s.isSiteBess).map(s=><tr key={s.id}>
+              <td style={{padding:"4px 8px",fontSize:10,fontWeight:600,color:C.white,whiteSpace:"nowrap"}}>{s.site}</td>
+              {s.vals.map((v,i)=><td key={i} style={{padding:"3px 2px",textAlign:"center"}}>{heatCell(v,socColor)}</td>)}
+              <td style={{padding:"3px 6px",textAlign:"center",fontSize:13,fontWeight:700,color:socColor(s.latest)}}>{s.latest!=null?s.latest+"%":"--"}</td>
+            </tr>)}</tbody>
+          </table>
+        </div></div>
+      </Box>
+
+      {/* SOC Trend Charts */}
+      <Box span="span 3"><SH color={C.y}>SOC Trend Charts</SH>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+          {socData.map(s=>{
+            const slots=s.isSiteBess?SBESS_SLOTS:AVAIL_SLOTS;
+            const lbls=s.isSiteBess?SBESS_LBL:AVAIL_LBL;
+            const lastVal=s.latest;
+            const lastColor=lastVal==null?C.dim:lastVal>=80?C.g:lastVal>=50?C.y:lastVal>=20?C.o:C.r;
+            const filled=s.vals.filter(v=>v!=null).length;
+            return <div key={s.id} style={{background:C.bg,border:"1px solid "+C.brd,borderRadius:5,padding:"8px 10px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <div style={{fontSize:10,fontWeight:600,color:C.white}}>{s.site}{s.isSiteBess?<span style={{fontSize:7,color:C.p,marginLeft:4}}>SITE</span>:null}</div>
+                <div style={{fontSize:14,fontWeight:700,color:lastColor}}>{lastVal!=null?lastVal+"%":"--"}</div>
+              </div>
+              <Spark vals={s.vals} labels={lbls} w={200} h={44} min={0} max={100} showArea={true}
+                thresholds={[{min:80,max:100,color:C.g},{min:50,max:80,color:C.y},{min:20,max:50,color:C.o},{min:0,max:20,color:C.r}]}/>
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+                <span style={{fontSize:7,color:C.dim}}>{lbls[0]}</span>
+                <span style={{fontSize:7,color:C.dim}}>{filled}/{slots.length} readings</span>
+                <span style={{fontSize:7,color:C.dim}}>{lbls[lbls.length-1]}</span>
+              </div>
+            </div>;
+          })}
+        </div>
+      </Box>
+
+      {/* Missing */}
+      <Box><SH color={missingAvail.length+missingSubs.length>0?C.y:C.g}><span className={missingAvail.length+missingSubs.length>0?"flash":""}>{missingAvail.length+missingSubs.length>0?(missingAvail.length+missingSubs.length)+" Missing":"\u2713 All Current"}</span></SH>
+        <div style={{maxHeight:200,overflowY:"auto"}}>
+          {missingAvail.length===0&&missingSubs.length===0&&<div style={{fontSize:11,color:C.g}}>All expected readings logged</div>}
+          {missingAvail.length>0&&<><div style={{fontSize:8,color:C.r,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>BESS Avail</div>
+            {missingAvail.slice(0,12).map((m,i)=><div key={i} style={{fontSize:10,color:C.txt,padding:"2px 0",display:"flex",justifyContent:"space-between"}}><span>{m.site}</span><span style={{color:C.r}}>{m.slot}</span></div>)}
+            {missingAvail.length>12&&<div style={{fontSize:9,color:C.dim}}>+{missingAvail.length-12} more</div>}</>}
+          {missingSubs.length>0&&<><div style={{fontSize:8,color:C.o,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginTop:8,marginBottom:4}}>Substations</div>
+            {missingSubs.slice(0,8).map((m,i)=><div key={i} style={{fontSize:10,color:C.txt,padding:"2px 0",display:"flex",justifyContent:"space-between"}}><span>{m.site}</span><span style={{color:C.o}}>{m.slot}</span></div>)}</>}
+        </div>
+      </Box>
+
+      {/* Node Trend */}
+      <Box span="span 2"><SH color={C.g}>Node Count Trend (24hr)</SH>
+        <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",width:"100%",minWidth:600}}>
+          <thead><tr><th style={thS}>Site</th><th style={thC}>Max</th>{AVAIL_LBL.map(l=><th key={l} style={thC}>{l}</th>)}</tr></thead>
+          <tbody>{nodeTrend.filter(s=>!s.isSiteBess).map(s=><tr key={s.site}>
+            <td style={{padding:"4px 8px",fontSize:10,fontWeight:600,color:C.white,whiteSpace:"nowrap"}}>{s.site}</td>
+            <td style={{padding:"3px 4px",textAlign:"center",fontSize:9,color:C.g}}>{s.max}</td>
+            {s.vals.map((v,i)=>{const isA=v!=null&&v<=s.out;const ratio=v!=null?v/s.max:null;const col=v==null?C.dim+"33":isA?C.r:ratio>0.9?C.g:ratio>0.7?C.y:C.o;
+              return <td key={i} style={{padding:"3px 2px",textAlign:"center"}}>{heatCell(v,()=>col)}</td>})}
+          </tr>)}</tbody>
+        </table>
+        {/* Bellefield & Rexford node counts */}
+        <div style={{borderTop:"1px solid "+C.brd,marginTop:6,paddingTop:6}}>
+          <div style={{fontSize:8,color:C.p,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Site BESS (Bellefield / Rexford)</div>
+          <table style={{borderCollapse:"collapse",width:"100%"}}>
+            <thead><tr><th style={thS}>Site</th>{SBESS_LBL.map(l=><th key={l} style={thC}>{l}</th>)}</tr></thead>
+            <tbody>{nodeTrend.filter(s=>s.isSiteBess).map(s=><tr key={s.site}>
+              <td style={{padding:"4px 8px",fontSize:10,fontWeight:600,color:C.white,whiteSpace:"nowrap"}}>{s.site}</td>
+              {s.vals.map((v,i)=>{const col=v==null?C.dim+"33":C.g;
+                return <td key={i} style={{padding:"3px 2px",textAlign:"center"}}>{heatCell(v,()=>col)}</td>})}
+            </tr>)}</tbody>
+          </table>
+        </div></div>
+      </Box>
+
+      {/* Sub Checks */}
+      <Box><SH>Substation Checks</SH>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>{subComp.map(s=>
+          <div key={s.site}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:10,color:C.white}}>{s.site}</span><span style={{fontSize:10,fontWeight:600,color:s.pct>=100?C.g:s.pct>0?C.y:C.dim}}>{s.done}/{s.total}</span></div>
+            <Bar pct={s.pct} color={s.pct>=100?C.g:s.pct>0?C.y:C.dim}/></div>)}</div>
+      </Box>
+
+      {/* BESS Control Summary */}
+      {(()=>{const sd=dd.bess_ctrl||{};const rows=BESS_SITES.map(site=>{let lat={};CTRL_SLOTS.forEach(sl=>{if(sd[site.id]?.[sl])lat=sd[site.id][sl]});return{site:site.n,vvar:lat.vvar||"--",ads:lat.ads||"--",pmax:lat.pmax||"--",emax:lat.emax||"--"}});
+        return <Box span="span 3"><SH color={C.b}>BESS Control Status (Latest)</SH>
+          <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",width:"100%"}}>
+            <thead><tr>{["Site","V/VAR","ADS","P,max","E,max"].map(h=><th key={h} style={thS}>{h}</th>)}</tr></thead>
+            <tbody>{rows.map(r=><tr key={r.site} style={{borderBottom:"1px solid "+C.brd}}>
+              <td style={{padding:"4px 8px",fontSize:10,fontWeight:600,color:C.white}}>{r.site}</td>
+              <td style={{padding:"4px 8px",fontSize:10,color:r.vvar==="--"?C.dim:C.g,fontWeight:600}}>{r.vvar}</td>
+              <td style={{padding:"4px 8px",fontSize:10,color:r.ads==="--"?C.dim:C.b,fontWeight:600}}>{r.ads}</td>
+              <td style={{padding:"4px 8px",fontSize:10,color:r.pmax==="--"?C.dim:C.p,fontWeight:600}}>{r.pmax}</td>
+              <td style={{padding:"4px 8px",fontSize:10,color:r.emax==="--"?C.dim:C.y,fontWeight:600}}>{r.emax}</td>
+            </tr>)}</tbody>
+          </table></div></Box>})()}
+
+      {/* CA PV Summary */}
+      {(()=>{const bsd=dd.ca_beacon||{};const gsd=dd.ca_bigsky||{};
+        const bRows=CAPV_BEACONS.map(site=>{let lat={};CAPV_SLOTS.forEach(sl=>{if(bsd[site.id]?.[sl])lat=bsd[site.id][sl]});return{site:site.n,pf:lat.pf||"--",curt:lat.curt||"--"}});
+        const gRows=CAPV_BIGSKY.map(site=>{let lat={};CAPV_SLOTS.forEach(sl=>{if(gsd[site.id]?.[sl])lat=gsd[site.id][sl]});return{site:site.n,vars:lat.vars||"--"}});
+        return <Box span="span 2"><SH color={C.o}>CA PV Status (Latest)</SH>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+            <div style={{flex:"1 1 200px"}}><div style={{fontSize:9,color:C.o,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Beacon - PF / Curt</div>
+              {bRows.map(r=><div key={r.site} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid "+C.brd}}>
+                <span style={{fontSize:10,color:C.white}}>{r.site}</span>
+                <span><span style={{fontSize:10,color:r.pf==="--"?C.dim:C.g,fontWeight:600,marginRight:10}}>{r.pf}</span><span style={{fontSize:10,color:r.curt==="--"?C.dim:C.r,fontWeight:600}}>{r.curt}</span></span>
+              </div>)}</div>
+            <div style={{flex:"2 1 300px"}}><div style={{fontSize:9,color:C.o,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Big Sky - VARs</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"2px 12px"}}>
+              {gRows.map(r=><div key={r.site} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid "+C.brd}}>
+                <span style={{fontSize:9,color:C.white,whiteSpace:"nowrap"}}>{r.site}</span>
+                <span style={{fontSize:10,color:r.vars==="--"?C.dim:C.g,fontWeight:600}}>{r.vars}</span>
+              </div>)}</div></div>
+          </div></Box>})()}
+
+      {/* V/VAR + Site BESS Summary */}
+      {(()=>{const vsd=dd.vvar_checks||{};const bsd=dd.site_bess||{};
+        return <Box><SH color={C.p}>V/VAR + Site BESS (Latest)</SH>
+          {VVAR_SITES.map(site=>{
+            let vlat={};VVAR_SLOTS.forEach(sl=>{if(vsd[site.id]?.[sl])vlat=vsd[site.id][sl]});
+            let blat={};SBESS_SLOTS.forEach(sl=>{if(bsd[site.id]?.[sl])blat=bsd[site.id][sl]});
+            return <div key={site.id} style={{marginBottom:10,padding:"8px 10px",background:C.bg,borderRadius:5,border:"1px solid "+C.brd}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.white,marginBottom:6}}>{site.n}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4,fontSize:9}}>
+                <div><span style={{color:C.dim}}>Volt:</span> <span style={{color:C.g,fontWeight:600}}>{vlat.volt||"--"}</span></div>
+                <div><span style={{color:C.dim}}>MVAR:</span> <span style={{color:C.y,fontWeight:600}}>{vlat.mvar||"--"}</span></div>
+                <div><span style={{color:C.dim}}>ADS:</span> <span style={{color:C.b,fontWeight:600}}>{vlat.ads||"--"}</span></div>
+                <div><span style={{color:C.dim}}>#N/C:</span> <span style={{color:C.g,fontWeight:600}}>{blat.nc||"--"}</span></div>
+                <div><span style={{color:C.dim}}>SOC:</span> <span style={{color:C.y,fontWeight:600}}>{blat.soc?blat.soc+"%":"--"}</span></div>
+                <div><span style={{color:C.dim}}>#INV:</span> <span style={{color:C.p,fontWeight:600}}>{blat.inv||"--"}</span></div>
+              </div>
+            </div>})}
+        </Box>})()}
+
+      {/* AZ + MCF PV + Road Runner / Kauai */}
+      {(()=>{const azd=dd.rando_az||{};const msd=dd.rando_mcf||{};const rsd=dd.rando_misc||{};
+        return <Box span="span 2"><SH color={C.r}>AZ / MCF PV / Road Runner / Kauai (Latest)</SH>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+            <div style={{flex:"1 1 140px"}}><div style={{fontSize:9,color:C.r,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>AZ Sites - VARs</div>
+              {RANDO_AZ.map(site=>{let lat={};RANDO_SLOTS.forEach(sl=>{if(azd[site.id]?.[sl])lat=azd[site.id][sl]});
+                return <div key={site.id} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid "+C.brd}}>
+                  <span style={{fontSize:10,color:C.white}}>{site.n}</span>
+                  <span style={{fontSize:10,color:lat.vars?C.g:C.dim,fontWeight:600}}>{lat.vars||"--"}</span>
+                </div>})}</div>
+            <div style={{flex:"1 1 160px"}}><div style={{fontSize:9,color:C.r,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>MCF PV - MVAR / ADS</div>
+              {RANDO_MCF.map(site=>{let lat={};RANDO_SLOTS.forEach(sl=>{if(msd[site.id]?.[sl])lat=msd[site.id][sl]});
+                return <div key={site.id} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid "+C.brd}}>
+                  <span style={{fontSize:10,color:C.white}}>{site.n}</span>
+                  <span><span style={{fontSize:10,color:lat.mvar?C.y:C.dim,fontWeight:600,marginRight:8}}>{lat.mvar||"--"}</span><span style={{fontSize:10,color:lat.ads?C.b:C.dim,fontWeight:600}}>{lat.ads||"--"}</span></span>
+                </div>})}</div>
+            <div style={{flex:"2 1 260px"}}><div style={{fontSize:9,color:C.r,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Road Runner / Kauai</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 16px"}}>
+              {[...RANDO_RR,...RANDO_KAUAI].map(site=>{let lat={};RANDO_SLOTS.forEach(sl=>{if(rsd[site.id]?.[sl])lat=rsd[site.id][sl]});
+                return <div key={site.id} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid "+C.brd}}>
+                  <span style={{fontSize:9,color:C.white,whiteSpace:"nowrap"}}>{site.n}</span>
+                  <span style={{fontSize:10,color:lat.val?C.g:C.dim,fontWeight:600}}>{lat.val||"--"}</span>
+                </div>})}</div></div>
+          </div></Box>})()}
+
+      {/* Outage Log */}
+      <Box span="span 3"><SH color={outageLog.length?C.r:C.g}>Outage Event Log {outageLog.length>0&&"("+outageLog.length+" events)"}</SH>
+        {outageLog.length===0?<div style={{fontSize:11,color:C.g}}>No outage events today</div>:
+        <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",width:"100%",fontSize:11}}>
+          <thead><tr>{["Site","Time","# N/C","Threshold","Max","Logged By"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:"left",fontSize:8,color:C.dim,textTransform:"uppercase",letterSpacing:2,borderBottom:"1px solid "+C.brd}}>{h}</th>)}</tr></thead>
+          <tbody>{outageLog.map((e,i)=><tr key={i} style={{borderBottom:"1px solid "+C.brd}}>
+            <td style={{padding:"6px 10px",fontWeight:700,color:C.r}}>{e.site}</td>
+            <td style={{padding:"6px 10px",color:C.txt}}>{e.slot}</td>
+            <td style={{padding:"6px 10px",color:C.r,fontWeight:700,fontSize:14}}>{e.nc}</td>
+            <td style={{padding:"6px 10px",color:C.y}}>{"\u2264"} {e.out}</td>
+            <td style={{padding:"6px 10px",color:C.dim}}>{e.max}</td>
+            <td style={{padding:"6px 10px",color:C.dim}}>{e.user}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      </Box>
+
+      {/* Shift Notes */}
+      <Box span="span 3">
+        <SH color={C.y}>Shift Notes</SH>
+        <ShiftNotes notes={dd.notes||[]} user={user} onSaveNote={onSaveNote}/>
+      </Box>
+
+      {/* Activity Log */}
+      <Box span="span 3"><SH color={C.b}>Activity Log - Who Entered What ({activity.length} entries)</SH>
+        {activity.length===0?<div style={{fontSize:11,color:C.dim}}>No data entries yet today</div>:
+        <div style={{overflowX:"auto",maxHeight:300,overflowY:"auto"}}><table style={{borderCollapse:"collapse",width:"100%",fontSize:11}}>
+          <thead style={{position:"sticky",top:0,zIndex:1}}><tr>{["Operator","Section","Site","Time Slot","Logged At"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:"left",fontSize:8,color:C.dim,textTransform:"uppercase",letterSpacing:2,borderBottom:"1px solid "+C.brd,background:C.s}}>{h}</th>)}</tr></thead>
+          <tbody>{activity.slice(0,100).map((e,i)=><tr key={i} style={{borderBottom:"1px solid "+C.brd}}>
+            <td style={{padding:"5px 10px",fontWeight:700,color:C.g}}>{e.user}</td>
+            <td style={{padding:"5px 10px",color:e.color}}>{e.section}</td>
+            <td style={{padding:"5px 10px",color:C.white}}>{e.site}</td>
+            <td style={{padding:"5px 10px",color:C.txt}}>{e.slot}</td>
+            <td style={{padding:"5px 10px",color:C.dim}}>{e.ts?new Date(e.ts).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      </Box>
+    </div>
+  );
+}
+
+// ================================================================
+// FAST GRID (input does NOT reset on background sync)
+// ================================================================
+function FastGrid({sectionKey,sites,slots,slotLabels,fields,data,dayKey:dkv,onSave,user,siteExtra}){
+  const refs=useRef({});
+  const dayData=data[dkv]?.[sectionKey]||{};
+  const isToday=dkv===dkf(new Date());
+  // Find the current active slot: the slot whose hour we're currently in or just passed
+  const nowSlot=(()=>{
+    if(!isToday)return null;
+    const h=curHr();
+    let best=null;
+    for(let i=slots.length-1;i>=0;i--){
+      const sh=parseInt(slots[i])/100;
+      if(sh<=h){best=slots[i];break}
+    }
+    // Handle overnight: if early morning (h<6) and slots have late-night ones
+    if(!best&&h<6){for(let i=slots.length-1;i>=0;i--){const sh=parseInt(slots[i])/100;if(sh>=18){best=slots[i];break}}}
+    return best;
+  })();
+
+  const buildRows=()=>sites.map(s=>{
+    const r={id:s.id,slots:{}};
+    slots.forEach(sl=>{r.slots[sl]={};fields.forEach(f=>{r.slots[sl][f.id]=dayData[s.id]?.[sl]?.[f.id]??""})});
+    return r;
+  });
+
+  const [rows,setRows]=useState(buildRows);
+
+  // ONLY rebuild rows when day or section changes, NOT on data refresh
+  const prevKey=useRef(dkv+"|"+sectionKey);
+  useEffect(()=>{
+    const k=dkv+"|"+sectionKey;
+    if(k!==prevKey.current){prevKey.current=k;setRows(buildRows())}
+  },[dkv,sectionKey]);
+
+  const set=(si,sl,fid,val)=>{
+    const n=[...rows];
+    n[si]={...n[si],slots:{...n[si].slots,[sl]:{...n[si].slots[sl],[fid]:val}}};
+    setRows(n);
+  };
+
+  const allF=useMemo(()=>{
+    const a=[];sites.forEach((s,si)=>{slots.forEach(sl=>{fields.forEach(f=>{a.push({si,sl,f:f.id})})})});return a;
+  },[sites.length,slots.length,fields.length]);
+
+  const handleKey=(e,si,sl,fid)=>{
+    if(e.key==="Enter"||e.key==="Tab"){
+      e.preventDefault();
+      const idx=allF.findIndex(x=>x.si===si&&x.sl===sl&&x.f===fid);
+      const next=e.shiftKey?allF[idx-1]:allF[idx+1];
+      if(next)refs.current[next.si+"-"+next.sl+"-"+next.f]?.focus();
+    }
+  };
+
+  const save=()=>{
+    const result={};
+    rows.forEach(r=>{
+      const sd={};
+      slots.forEach(sl=>{
+        const hasD=fields.some(f=>r.slots[sl][f.id]!=="");
+        if(hasD){sd[sl]={_user:user.name,_ts:Date.now()};fields.forEach(f=>{sd[sl][f.id]=r.slots[sl][f.id]})}
+      });
+      if(Object.keys(sd).length)result[r.id]=sd;
+    });
+    onSave(dkv,sectionKey,result);
+  };
+
+  const hasData=rows.some(r=>slots.some(sl=>fields.some(f=>r.slots[sl][f.id]!=="")));
+
+  const inp=(si,sl,f)=>{
+    const val=rows[si].slots[sl][f.id];
+    const site=sites[si];
+    const saved=dayData[site.id]?.[sl];
+    const who=saved?._user;const when=saved?._ts;
+    const tip=who?("Logged by "+who+(when?" at "+fT(when):"")):"";
+    const isA=f.alert&&val!==""&&!isNaN(parseFloat(val))&&parseFloat(val)<=site[f.alert];
+    const isNow=sl===nowSlot;
+    const bgColor=isA?C.r+"22":isNow&&val===""?C.y+"15":C.inputBg;
+    const brdColor=isA?C.r:isNow&&val===""?C.y+"88":C.brd;
+    return <input
+      ref={el=>{refs.current[si+"-"+sl+"-"+f.id]=el}}
+      value={val}
+      onChange={e=>set(si,sl,f.id,e.target.value)}
+      onKeyDown={e=>handleKey(e,si,sl,f.id)}
+      type={f.type||"text"} step={f.step||"any"} placeholder={isNow?"NOW":"--"} title={tip}
+      style={{width:f.w||40,padding:"4px 2px",background:bgColor,border:"1px solid "+brdColor,borderRadius:3,color:val!==""?(isA?C.r:C.white):isNow?C.y+"66":C.dim+"44",fontSize:11,fontFamily:ft,fontWeight:val!==""?600:400,outline:"none",boxSizing:"border-box",textAlign:"center"}}
+      onFocus={e=>{e.target.style.borderColor=C.g;e.target.select()}}
+      onBlur={e=>{e.target.style.borderColor=isA?C.r:C.brd}}
+    />;
+  };
+
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div style={{fontSize:10,color:C.dim}}>Tab/Enter to advance | Hover cells to see who logged</div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {(()=>{const users=new Set();sites.forEach(s=>{slots.forEach(sl=>{const u=dayData[s.id]?.[sl]?._user;if(u)users.add(u)})});return users.size>0?<div style={{fontSize:9,color:C.dim}}>Logged by: {[...users].map((u,i)=><span key={u} style={{color:C.g,fontWeight:600}}>{i>0?", ":""}{u}</span>)}</div>:null})()}
+          <button onClick={save} style={{padding:"6px 16px",background:hasData?C.g:C.brd,color:hasData?C.bg:C.dim,border:"none",borderRadius:5,fontSize:11,fontWeight:700,fontFamily:ft,cursor:hasData?"pointer":"not-allowed",letterSpacing:1}}>Save</button>
+        </div>
+      </div>
+      <div style={{background:C.s,border:"1px solid "+C.brd,borderRadius:6,overflow:"hidden"}}>
+        <div style={{overflowX:"auto"}}>
+          <table style={{borderCollapse:"collapse",width:"100%",minWidth:Math.max(600,slots.length*fields.length*46+140)}}>
+            <thead>
+              <tr>
+                <th style={{padding:"6px 8px",textAlign:"left",fontSize:8,color:C.dim,letterSpacing:2,borderBottom:"2px solid "+C.brd,position:"sticky",left:0,background:C.s,zIndex:3,minWidth:110,textTransform:"uppercase"}}>Site</th>
+                {siteExtra&&<th style={{padding:"6px 4px",textAlign:"center",fontSize:7,color:C.dim,letterSpacing:1,borderBottom:"2px solid "+C.brd,textTransform:"uppercase"}}>{siteExtra.label}</th>}
+                {slots.map((sl,i)=>{const isNow=sl===nowSlot;return <th key={sl} colSpan={fields.length} className={isNow?"slot-now":""} style={{padding:"6px 2px",textAlign:"center",fontSize:isNow?10:9,color:isNow?C.y:C.dim,borderBottom:isNow?"2px solid "+C.y:"2px solid "+C.brd,borderLeft:"1px solid "+C.brd,background:isNow?C.y+"18":"transparent",fontWeight:isNow?700:400}}>{slotLabels[i]}{isNow?" \u25C0":""}</th>})}
+              </tr>
+              <tr>
+                <th style={{padding:"3px 8px",borderBottom:"1px solid "+C.brd,position:"sticky",left:0,background:C.s,zIndex:3}}/>
+                {siteExtra&&<th style={{padding:"3px 4px",borderBottom:"1px solid "+C.brd}}/>}
+                {slots.map(sl=>fields.map((f,fi)=><th key={sl+f.id} style={{padding:"3px 2px",fontSize:7,color:f.color||C.dim,textAlign:"center",borderBottom:"1px solid "+C.brd,borderLeft:fi===0?"1px solid "+C.brd:"none",textTransform:"uppercase",letterSpacing:1,whiteSpace:"nowrap"}}>{f.label}</th>))}
+              </tr>
+            </thead>
+            <tbody>
+              {sites.map((site,si)=><tr key={site.id} style={{borderBottom:"1px solid "+C.brd}}>
+                <td style={{padding:"5px 8px",position:"sticky",left:0,background:C.s,zIndex:2,borderRight:"1px solid "+C.brd}}><div style={{fontSize:11,fontWeight:600,color:C.white,whiteSpace:"nowrap"}}>{site.n}</div></td>
+                {siteExtra&&<td style={{padding:"3px 4px",textAlign:"center",fontSize:8}}>{site.max&&<><div style={{color:C.g,fontWeight:600}}>{site.max}</div><div style={{color:C.r,fontSize:7}}>{"\u2264"}{site.out}</div></>}</td>}
+                {slots.map(sl=>fields.map((f,fi)=><td key={sl+f.id} style={{padding:"2px 1px",textAlign:"center",borderLeft:fi===0?"1px solid "+C.brd:"none"}}>{inp(si,sl,f)}</td>))}
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// REPORT
+// ================================================================
+function Report({data,dayKey:dkv,user,onClose}){
+  const ref=useRef(null);
+  const dd=data[dkv]||{};
+  const dateStr=fL(new Date(dkv+"T12:00:00"));
+  const shifts=dd.shifts||[];
+
+  const thS={background:"#0a0e14",color:"#fff",padding:"4px 3px",textAlign:"center",fontSize:6,textTransform:"uppercase",letterSpacing:1,fontFamily:"monospace"};
+  const tdS=si=>({padding:"3px 3px",borderBottom:"1px solid #eee",textAlign:"center",fontFamily:"monospace",fontSize:9,background:si%2?"#fafafa":"#fff"});
+  const tdN=si=>({...tdS(si),textAlign:"left",fontWeight:600});
+  const secH={fontFamily:"monospace",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginTop:12,marginBottom:5,borderBottom:"1px solid #ddd",paddingBottom:3};
+
+  // Build audit trail from all sections
+  const auditEntries=[];
+  SECTIONS.forEach(sec=>{
+    const sd=dd[sec.id]||{};
+    sec.sites.forEach(site=>{
+      sec.slots.forEach((sl,si)=>{
+        const slotData=sd[site.id]?.[sl];
+        if(slotData&&slotData._user){
+          auditEntries.push({section:sec.label,site:site.n,slot:sec.slotLabels[si],user:slotData._user,ts:slotData._ts});
+        }
+      });
+    });
+  });
+  auditEntries.sort((a,b)=>(b.ts||0)-(a.ts||0));
+
+  const renderT=(title,sk,sites,slots,labels,fields,showExtra)=>{
+    const sd=dd[sk]||{};
+    // Collect who logged each slot
+    const slotUsers={};
+    sites.forEach(site=>{slots.forEach(sl=>{const u=sd[site.id]?.[sl]?._user;if(u)slotUsers[sl]=u})});
+    return(<div><div style={secH}>{title}</div>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:9,marginBottom:6}}>
+        <thead><tr><th style={{...thS,textAlign:"left",paddingLeft:6,minWidth:70}}>Site</th>
+          {showExtra&&<><th style={{...thS,minWidth:20}}>Max</th><th style={{...thS,minWidth:20}}>Out</th></>}
+          {labels.map(l=><th key={l} colSpan={fields.length} style={{...thS,borderLeft:"1px solid #333"}}>{l}</th>)}</tr>
+          <tr><th style={thS}/>{showExtra&&<><th style={thS}/><th style={thS}/></>}
+          {slots.map(sl=>fields.map((f,fi)=><th key={sl+f.id} style={{...thS,borderLeft:fi===0?"1px solid #333":"none",fontSize:5}}>{f.label}</th>))}</tr>
+        </thead>
+        <tbody>{sites.map((site,si)=><tr key={site.id}>
+          <td style={tdN(si)}>{site.n}</td>
+          {showExtra&&<><td style={tdS(si)}>{site.max||""}</td><td style={{...tdS(si),color:site.out?"#cc0000":"inherit"}}>{site.out?"\u2264"+site.out:""}</td></>}
+          {slots.map(sl=>fields.map((f,fi)=>{
+            const v=sd[site.id]?.[sl]?.[f.id];
+            const isA=f.alert&&v!=null&&v!==""&&parseFloat(v)<=site[f.alert];
+            return <td key={sl+f.id} style={{...tdS(si),borderLeft:fi===0?"1px solid #eee":"none",color:isA?"#cc0000":"inherit",fontWeight:isA?700:400}}>{v!=null&&v!==""?v:"--"}</td>}))}
+        </tr>)}
+        {/* Logged-by row */}
+        {Object.keys(slotUsers).length>0&&<tr>
+          <td style={{...tdN(0),fontSize:7,color:"#999"}}>Logged by</td>
+          {showExtra&&<><td/><td/></>}
+          {slots.map(sl=><td key={sl} colSpan={fields.length} style={{padding:"2px 3px",fontSize:7,color:"#999",textAlign:"center",borderLeft:"1px solid #eee"}}>{slotUsers[sl]||""}</td>)}
+        </tr>}
+        </tbody>
+      </table></div>);
+  };
+
+  const reportCSS='*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1a1a2e;padding:16px;font-size:9px}table{width:100%;border-collapse:collapse;font-size:8px;margin-bottom:6px}th{background:#0a0e14;color:#fff;padding:4px 3px;text-align:center;font-size:6px;text-transform:uppercase;font-family:monospace}td{padding:3px;border-bottom:1px solid #eee;text-align:center;font-family:monospace;font-size:8px}tr:nth-child(even) td{background:#fafafa}@media print{body{padding:8px}}';
+
+  const getReportHTML=()=>{
+    const el=ref.current;if(!el)return null;
+    return '<!DOCTYPE html><html><head><title>ROCC Report - '+dkv+'</title><style>'+reportCSS+'</style></head><body>'+el.innerHTML+'</body></html>';
+  };
+
+  const print=()=>{
+    const html=getReportHTML();if(!html)return;
+    const w=window.open("","_blank");
+    if(!w){alert("Please allow popups for this site to print reports.");return}
+    w.document.write(html.replace('</body>','<script>window.onload=function(){window.print()}<\/script></body>'));
+    w.document.close();
+  };
+
+  const download=()=>{
+    const html=getReportHTML();if(!html)return;
+    const blob=new Blob([html],{type:"text/html"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download="ROCC_Report_"+dkv+".html";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",display:"flex",flexDirection:"column",zIndex:200}}>
+      <div style={{background:C.s,borderBottom:"1px solid "+C.brd,padding:"8px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+        <div style={{color:"#fff",fontSize:13,fontWeight:700,fontFamily:ft}}>Daily Report - {dateStr}</div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={download} style={{padding:"6px 16px",background:C.b,color:"#fff",border:"none",borderRadius:5,fontSize:11,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>Download File</button>
+          <button onClick={print} style={{padding:"6px 16px",background:C.g,color:C.bg,border:"none",borderRadius:5,fontSize:11,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>Print / PDF</button>
+          <button onClick={onClose} style={{padding:"6px 12px",background:"transparent",border:"1px solid "+C.brd,borderRadius:5,color:C.txt,fontSize:11,fontFamily:ft,cursor:"pointer"}}>Close</button>
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",display:"flex",justifyContent:"center",padding:12}}>
+        <div style={{background:"#fff",width:1100,minHeight:900,borderRadius:4,boxShadow:"0 4px 40px rgba(0,0,0,0.5)"}}>
+          <div ref={ref} style={{padding:20,fontFamily:"Arial,sans-serif",color:"#1a1a2e",fontSize:9}}>
+            <div style={{borderBottom:"3px solid #0a0e14",paddingBottom:8,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
+              <div><div style={{fontFamily:"monospace",fontSize:16,fontWeight:700}}>ROCC Daily Operations Report</div><div style={{fontSize:11,color:"#555"}}>{dateStr}</div></div>
+              <div style={{textAlign:"right",fontSize:8,color:"#777"}}><div style={{fontWeight:700,color:"#1a1a2e",fontSize:10}}>AES Clean Energy</div><div>Control Center Operations</div><div>Generated: {new Date().toLocaleString("en-US")}</div></div>
+            </div>
+            {shifts.length>0&&<div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>{shifts.map((s,i)=><div key={i} style={{background:"#f5f5f5",padding:"4px 10px",borderRadius:3,fontSize:9}}><strong>{s.name}</strong> ({s.role}) - {s.shift} - {fT(s.loginTime)}</div>)}</div>}
+            {renderT("BESS Availability","bess_avail",BESS_SITES,AVAIL_SLOTS,AVAIL_LBL,[{id:"nc",label:"#N/C",alert:"out"},{id:"soc",label:"SOC%"}],true)}
+            {renderT("BESS Control","bess_ctrl",BESS_SITES,CTRL_SLOTS,CTRL_LBL,[{id:"vvar",label:"V/VAR"},{id:"ads",label:"ADS"},{id:"pmax",label:"Pmax"},{id:"emax",label:"Emax"},{id:"pcomm",label:"PCom"},{id:"acomm",label:"ACom"}],false)}
+            {renderT("CA PV Beacon","ca_beacon",CAPV_BEACONS,CAPV_SLOTS,CAPV_LBL,[{id:"pf",label:"PF"},{id:"curt",label:"Curt"}],false)}
+            {renderT("CA PV Big Sky","ca_bigsky",CAPV_BIGSKY,CAPV_SLOTS,CAPV_LBL,[{id:"vars",label:"Y/N"}],false)}
+            {renderT("V/VAR Checks","vvar_checks",VVAR_SITES,VVAR_SLOTS,VVAR_LBL,[{id:"volt",label:"Volt"},{id:"mvar",label:"MVAR"},{id:"ads",label:"ADS"}],false)}
+            {renderT("Site BESS","site_bess",VVAR_SITES,SBESS_SLOTS,SBESS_LBL,[{id:"nc",label:"#N/C"},{id:"soc",label:"SOC%"},{id:"inv",label:"#INV"},{id:"am",label:"A/M"}],false)}
+            {renderT("AZ Sites","rando_az",RANDO_AZ,RANDO_SLOTS,RANDO_LBL,[{id:"vars",label:"Y/N"}],false)}
+            {renderT("MCF PV","rando_mcf",RANDO_MCF,RANDO_SLOTS,RANDO_LBL,[{id:"mvar",label:"MVAR"},{id:"ads",label:"ADS"}],false)}
+            {renderT("Road Runner / Kauai","rando_misc",[...RANDO_RR,...RANDO_KAUAI],RANDO_SLOTS,RANDO_LBL,[{id:"val",label:"Value"}],false)}
+            {renderT("Substation Checks","subs",SUB_SITES,SUB_SLOTS,SUB_LBL,[{id:"sat",label:"SAT"},{id:"notes",label:"Notes"}],false)}
+            {(dd.notes||[]).length>0&&<div>
+              <div style={secH}>Shift Notes</div>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:8,marginBottom:6}}>
+                <thead><tr>{["Operator","Role","Time","Note"].map(h=><th key={h} style={{...thS,textAlign:"left",paddingLeft:6}}>{h}</th>)}</tr></thead>
+                <tbody>{(dd.notes||[]).map((n,i)=><tr key={i}>
+                  <td style={{...tdS(i),textAlign:"left",paddingLeft:6,fontWeight:700}}>{n.user}</td>
+                  <td style={{...tdS(i),textAlign:"left",paddingLeft:6}}>{n.role}</td>
+                  <td style={{...tdS(i),textAlign:"left",paddingLeft:6}}>{n.ts?new Date(n.ts).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</td>
+                  <td style={{...tdS(i),textAlign:"left",paddingLeft:6,maxWidth:500}}>{n.text}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>}
+            {auditEntries.length>0&&<div>
+              <div style={secH}>Audit Trail - Data Entry Log</div>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:8,marginBottom:6}}>
+                <thead><tr>{["Operator","Section","Site","Time Slot","Logged At"].map(h=><th key={h} style={{...thS,textAlign:"left",paddingLeft:6}}>{h}</th>)}</tr></thead>
+                <tbody>{auditEntries.slice(0,50).map((e,i)=><tr key={i}>
+                  <td style={{...tdS(i),textAlign:"left",paddingLeft:6,fontWeight:700}}>{e.user}</td>
+                  <td style={{...tdS(i),textAlign:"left",paddingLeft:6}}>{e.section}</td>
+                  <td style={{...tdS(i),textAlign:"left",paddingLeft:6}}>{e.site}</td>
+                  <td style={{...tdS(i),textAlign:"left",paddingLeft:6}}>{e.slot}</td>
+                  <td style={{...tdS(i),textAlign:"left",paddingLeft:6}}>{e.ts?new Date(e.ts).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>}
+            <div style={{marginTop:20,display:"flex",gap:36}}>{["Operator Signature","Shift Lead Signature","Date"].map(l=><div key={l} style={{flex:1}}><div style={{borderBottom:"1px solid #999",height:20,marginBottom:2}}/><div style={{fontSize:7,color:"#777",textTransform:"uppercase",letterSpacing:1}}>{l}</div></div>)}</div>
+            <div style={{marginTop:14,paddingTop:6,borderTop:"2px solid #0a0e14",display:"flex",justifyContent:"space-between",fontSize:8,color:"#777"}}><div>AES Clean Energy - ROCC Control Center Voltage Logs V3.0 | Developed by Rocky Dev Co.</div><div>Confidential - Internal Use Only</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// SHIFT TURNOVER
+// ================================================================
+function Turnover({data,dayKey:dkv,user,onSave}){
+  const dd=data[dkv]||{};
+  const turnovers=dd.turnovers||[];
+  const h=curHr();
+  const currentShiftType=h>=6&&h<18?"Day":"Night";
+
+  // Auto snapshot from today's data
+  const avail=dd.bess_avail||{};
+  const alerts=[];
+  BESS_SITES.forEach(site=>{
+    const sd=avail[site.id]||{};let lnc=null,lsl=null;
+    AVAIL_SLOTS.forEach(sl=>{if(sd[sl]?.nc!=null&&sd[sl].nc!==""){lnc=parseFloat(sd[sl].nc);lsl=sl}});
+    if(lnc!=null&&lnc<=site.out)alerts.push({site:site.n,nc:lnc,max:site.max,slot:lsl});
+  });
+  const lowSoc=[];
+  BESS_SITES.forEach(site=>{
+    const sd=avail[site.id]||{};let last=null;
+    AVAIL_SLOTS.forEach(sl=>{const v=sd[sl]?.soc;if(v!=null&&v!=="")last=parseFloat(v)});
+    if(last!=null&&last<20)lowSoc.push({site:site.n,soc:last});
+  });
+  const viewingPast=dkv<dkf(new Date());
+  const eAS=AVAIL_SLOTS.filter(sl=>slotExpected(sl,h,viewingPast));
+  let missingCount=0;
+  BESS_SITES.forEach(site=>{const sd=avail[site.id]||{};eAS.forEach(sl=>{if(!sd[sl]||sd[sl].nc==null||sd[sl].nc==="")missingCount++})});
+  const compSecs=[
+    {key:"bess_avail",sites:BESS_SITES,slots:AVAIL_SLOTS,fields:["nc","soc"]},
+    {key:"bess_ctrl",sites:BESS_SITES,slots:CTRL_SLOTS,fields:["vvar","ads"]},
+    {key:"subs",sites:SUB_SITES,slots:SUB_SLOTS,fields:["sat"]},
+  ];
+  let tAll=0,fAll=0;
+  compSecs.forEach(sec=>{const sd=dd[sec.key]||{};const eSl=sec.slots.filter(sl=>slotExpected(sl,h,viewingPast));sec.sites.forEach(site=>{eSl.forEach(sl=>{sec.fields.forEach(f=>{tAll++;if(sd[site.id]?.[sl]?.[f]!=null&&sd[site.id][sl][f]!=="")fAll++})})})});
+
+  // Draft state
+  const [issues,setIssues]=useState([{site:"",issue:"",status:"Active"}]);
+  const [events,setEvents]=useState("");
+  const [pending,setPending]=useState("");
+  const [submitting,setSubmitting]=useState(false);
+
+  // Acknowledge state
+  const [ackIdx,setAckIdx]=useState(null);
+
+  const addIssueRow=()=>setIssues(p=>[...p,{site:"",issue:"",status:"Active"}]);
+  const setIssue=(i,field,val)=>{const n=[...issues];n[i]={...n[i],[field]:val};setIssues(n)};
+  const removeIssue=(i)=>setIssues(p=>p.filter((_,j)=>j!==i));
+
+  const submit=()=>{
+    const filledIssues=issues.filter(r=>r.site.trim()||r.issue.trim());
+    const turnover={
+      id:Date.now(),
+      outgoing:{name:user.name,role:user.role,shift:user.shift},
+      shiftType:currentShiftType,
+      ts:Date.now(),
+      issues:filledIssues,
+      events:events.trim(),
+      pending:pending.trim(),
+      snapshot:{alerts:alerts.length,lowSoc:lowSoc.length,missing:missingCount,completion:tAll>0?pct(fAll,tAll):0,alertDetails:alerts.slice(0,5),lowSocDetails:lowSoc.slice(0,5)},
+      ack:null
+    };
+    onSave(dkv,turnover);
+    setIssues([{site:"",issue:"",status:"Active"}]);
+    setEvents("");
+    setPending("");
+  };
+
+  const acknowledge=(idx)=>{
+    const t=turnovers[idx];
+    if(!t)return;
+    const updated={...t,ack:{name:user.name,role:user.role,ts:Date.now()}};
+    const newTurnovers=[...turnovers];
+    newTurnovers[idx]=updated;
+    onSave(dkv,null,newTurnovers);
+    setAckIdx(null);
+  };
+
+  const is={width:"100%",padding:"8px 10px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:11,fontFamily:ft,outline:"none",boxSizing:"border-box"};
+  const selS={...is,cursor:"pointer",width:"auto",minWidth:90};
+
+  return(
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      {/* New Turnover Form */}
+      <Box span="span 2"><SH color={C.y}>New Shift Turnover</SH>
+        <div style={{display:"flex",gap:12,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+          <div style={{fontSize:11,color:C.white}}><span style={{color:C.g,fontWeight:700}}>{user.name}</span> <span style={{color:C.dim}}>({user.role})</span></div>
+          <div style={{fontSize:11,color:h>=6&&h<18?C.y:C.b,fontWeight:600}}>{currentShiftType} Shift</div>
+          <div style={{fontSize:10,color:C.dim}}>{new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
+        </div>
+
+        {/* Issues & Exceptions */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:9,color:C.r,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Issues & Exceptions (sites needing attention)</div>
+          {issues.map((row,i)=><div key={i} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
+            <input value={row.site} onChange={e=>setIssue(i,"site",e.target.value)} placeholder="Site name" style={{...is,width:140,flexShrink:0}}/>
+            <input value={row.issue} onChange={e=>setIssue(i,"issue",e.target.value)} placeholder="Issue description" style={{...is,flex:1}}/>
+            <select value={row.status} onChange={e=>setIssue(i,"status",e.target.value)} style={selS}>
+              <option>Active</option><option>Monitoring</option><option>Resolved</option><option>Escalated</option>
+            </select>
+            {issues.length>1&&<button onClick={()=>removeIssue(i)} style={{padding:"4px 8px",background:"transparent",border:"1px solid "+C.brd,borderRadius:3,color:C.r,fontSize:11,fontFamily:ft,cursor:"pointer"}}>x</button>}
+          </div>)}
+          <button onClick={addIssueRow} style={{padding:"4px 12px",background:"transparent",border:"1px dashed "+C.brd,borderRadius:4,color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",marginTop:2}}>+ Add Issue</button>
+        </div>
+
+        {/* Key Events */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:9,color:C.b,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Key Events This Shift</div>
+          <textarea value={events} onChange={e=>setEvents(e.target.value)} placeholder="Curtailments, outages, comms losses, commissioning, anything notable..." rows={3}
+            style={{...is,resize:"vertical",lineHeight:"1.5"}}/>
+        </div>
+
+        {/* Pending Actions */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:9,color:C.o,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Pending Actions / Follow-ups for Next Shift</div>
+          <textarea value={pending} onChange={e=>setPending(e.target.value)} placeholder="Things the incoming shift needs to do or watch for..." rows={3}
+            style={{...is,resize:"vertical",lineHeight:"1.5"}}/>
+        </div>
+
+        <button onClick={submit} style={{padding:"8px 24px",background:C.g,color:C.bg,border:"none",borderRadius:5,fontSize:12,fontWeight:700,fontFamily:ft,cursor:"pointer",letterSpacing:1}}>Submit Turnover</button>
+      </Box>
+
+      {/* Auto Snapshot */}
+      <Box><SH color={C.p}>Auto Snapshot (Current State)</SH>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:C.bg,borderRadius:4,border:"1px solid "+C.brd}}>
+            <span style={{fontSize:10,color:C.dim}}>Overall Completion</span>
+            <span style={{fontSize:12,fontWeight:700,color:pct(fAll,tAll)>=90?C.g:pct(fAll,tAll)>=60?C.y:C.r}}>{pct(fAll,tAll)}%</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:C.bg,borderRadius:4,border:"1px solid "+C.brd}}>
+            <span style={{fontSize:10,color:C.dim}}>Missing Logs</span>
+            <span className={missingCount>0?"flash":""} style={{fontSize:12,fontWeight:700,color:missingCount>0?C.r:C.g}}>{missingCount}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:alerts.length>0?C.r+"18":C.bg,borderRadius:4,border:"1px solid "+(alerts.length>0?C.r+"44":C.brd)}}>
+            <span style={{fontSize:10,color:C.dim}}>Sites in Outage</span>
+            <span style={{fontSize:12,fontWeight:700,color:alerts.length>0?C.r:C.g}}>{alerts.length}</span>
+          </div>
+          {alerts.length>0&&<div style={{padding:"4px 10px"}}>{alerts.map((a,i)=><div key={i} style={{fontSize:10,color:C.r,padding:"2px 0"}}>{a.site}: {a.nc}/{a.max} nodes</div>)}</div>}
+          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:lowSoc.length>0?C.o+"18":C.bg,borderRadius:4,border:"1px solid "+(lowSoc.length>0?C.o+"44":C.brd)}}>
+            <span style={{fontSize:10,color:C.dim}}>SOC Below 20%</span>
+            <span style={{fontSize:12,fontWeight:700,color:lowSoc.length>0?C.o:C.g}}>{lowSoc.length}</span>
+          </div>
+          {lowSoc.length>0&&<div style={{padding:"4px 10px"}}>{lowSoc.map((s,i)=><div key={i} style={{fontSize:10,color:C.o,padding:"2px 0"}}>{s.site}: {s.soc}%</div>)}</div>}
+        </div>
+      </Box>
+
+      {/* Turnover History */}
+      <Box><SH color={C.b}>Turnover History ({turnovers.length})</SH>
+        {turnovers.length===0?<div style={{fontSize:11,color:C.dim}}>No turnovers submitted today</div>:
+        <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:400,overflowY:"auto"}}>
+          {turnovers.slice().reverse().map((t,ri)=>{const idx=turnovers.length-1-ri;return(
+            <div key={t.id||ri} style={{background:C.bg,border:"1px solid "+(t.ack?C.g+"66":C.y+"66"),borderRadius:6,padding:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div>
+                  <span style={{fontSize:12,fontWeight:700,color:C.white}}>{t.outgoing?.name||"--"}</span>
+                  <span style={{fontSize:9,color:C.dim,marginLeft:6}}>{t.outgoing?.role}</span>
+                  <span style={{fontSize:10,color:t.shiftType==="Day"?C.y:C.b,fontWeight:600,marginLeft:8}}>{t.shiftType}</span>
+                </div>
+                <div style={{fontSize:9,color:C.dim}}>{t.ts?new Date(t.ts).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
+              </div>
+
+              {t.issues&&t.issues.length>0&&<div style={{marginBottom:6}}>
+                <div style={{fontSize:8,color:C.r,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Issues</div>
+                {t.issues.map((iss,j)=><div key={j} style={{fontSize:10,color:C.white,padding:"2px 0",display:"flex",gap:8}}>
+                  <span style={{color:C.g,fontWeight:600,minWidth:100}}>{iss.site}</span>
+                  <span style={{flex:1}}>{iss.issue}</span>
+                  <span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:iss.status==="Active"?C.r+"33":iss.status==="Escalated"?C.o+"33":iss.status==="Monitoring"?C.y+"33":C.g+"33",color:iss.status==="Active"?C.r:iss.status==="Escalated"?C.o:iss.status==="Monitoring"?C.y:C.g}}>{iss.status}</span>
+                </div>)}
+              </div>}
+
+              {t.events&&<div style={{marginBottom:6}}>
+                <div style={{fontSize:8,color:C.b,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Key Events</div>
+                <div style={{fontSize:10,color:C.txt,whiteSpace:"pre-wrap",lineHeight:"1.4"}}>{t.events}</div>
+              </div>}
+
+              {t.pending&&<div style={{marginBottom:6}}>
+                <div style={{fontSize:8,color:C.o,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Pending Actions</div>
+                <div style={{fontSize:10,color:C.txt,whiteSpace:"pre-wrap",lineHeight:"1.4"}}>{t.pending}</div>
+              </div>}
+
+              {t.snapshot&&<div style={{marginBottom:6}}>
+                <div style={{fontSize:8,color:C.p,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Snapshot at Turnover</div>
+                <div style={{display:"flex",gap:12,fontSize:9}}>
+                  <span style={{color:C.dim}}>Completion: <span style={{color:C.white,fontWeight:600}}>{t.snapshot.completion}%</span></span>
+                  <span style={{color:C.dim}}>Missing: <span style={{color:t.snapshot.missing>0?C.r:C.white,fontWeight:600}}>{t.snapshot.missing}</span></span>
+                  <span style={{color:C.dim}}>Outages: <span style={{color:t.snapshot.alerts>0?C.r:C.white,fontWeight:600}}>{t.snapshot.alerts}</span></span>
+                  <span style={{color:C.dim}}>Low SOC: <span style={{color:t.snapshot.lowSoc>0?C.o:C.white,fontWeight:600}}>{t.snapshot.lowSoc}</span></span>
+                </div>
+              </div>}
+
+              {/* Acknowledgment */}
+              <div style={{borderTop:"1px solid "+C.brd,marginTop:8,paddingTop:8}}>
+                {t.ack?<div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:C.g}}/>
+                  <span style={{fontSize:10,color:C.g,fontWeight:600}}>Acknowledged by {t.ack.name}</span>
+                  <span style={{fontSize:9,color:C.dim}}>({t.ack.role}) at {new Date(t.ack.ts).toLocaleString("en-US",{hour:"2-digit",minute:"2-digit"})}</span>
+                </div>
+                :<div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:C.y}} className="flash"/>
+                  <span style={{fontSize:10,color:C.y}}>Awaiting acknowledgment</span>
+                  {t.outgoing?.name!==user.name&&<button onClick={()=>acknowledge(idx)} style={{padding:"4px 12px",background:C.g,color:C.bg,border:"none",borderRadius:4,fontSize:10,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>Acknowledge</button>}
+                </div>}
+              </div>
+            </div>
+          )})}
+        </div>}
+      </Box>
+    </div>
+  );
+}
+
+// ================================================================
+// MAIN APP
+// ================================================================
+function App(){
+  const [user,setUser]=useState(null);
+  const [data,setData]=useState(()=>lsGet());
+  const [selDay,setSelDay]=useState(tIdx());
+  const [weekOff,setWeekOff]=useState(0);
+  const [secIdx,setSecIdx]=useState(-1); // -1 = dashboard
+  const [showReport,setShowReport]=useState(false);
+  const [syncStatus,setSyncStatus]=useState("loading");
+  const [lastSync,setLastSync]=useState(null);
+  const [loaded,setLoaded]=useState(false);
+  const dataRef=useRef(data);
+  useEffect(()=>{dataRef.current=data},[data]);
+  const loginDayRef=useRef(null);
+
+  // Theme — set C synchronously during render so all children see it immediately
+  const [theme,setTheme]=useState(()=>localStorage.getItem("rocc_theme")||"dark");
+  C=THEMES[theme]||THEMES.dark;
+  useEffect(()=>{
+    localStorage.setItem("rocc_theme",theme);
+    document.body.className=theme==="light"?"light":"";
+  },[theme]);
+  const toggleTheme=()=>setTheme(t=>t==="dark"?"light":"dark");
+
+  const now=new Date();now.setDate(now.getDate()+weekOff*7);const weekStart=getWS(now);
+  const selDate=getDD(weekStart,selDay);
+  const dkv=dkf(selDate);
+  const sec=secIdx>=0?SECTIONS[secIdx]:null;
+
+  // Initial load from Google Sheets
+  useEffect(()=>{
+    if(!isOnline){setSyncStatus("offline");setLoaded(true);return}
+    setSyncStatus("loading");
+    gsGetAll().then(remote=>{
+      if(remote&&Object.keys(remote).length>0){
+        const local=lsGet();
+        const merged=deepMerge(local,remote);
+        if(JSON.stringify(merged)!==JSON.stringify(local)){setData(merged);lsSet(merged)}
+      }
+      setSyncStatus("ok");setLastSync(Date.now());setLoaded(true);
+    }).catch(()=>{setSyncStatus("error");setLoaded(true)});
+  },[]);
+
+  // Auto-refresh on all tabs to keep multi-user data in sync
+  const secIdxRef=useRef(secIdx);
+  useEffect(()=>{secIdxRef.current=secIdx},[secIdx]);
+  useEffect(()=>{
+    if(!isOnline)return;
+    const iv=setInterval(()=>{
+      gsGetAll().then(remote=>{
+        if(remote&&Object.keys(remote).length>0){
+          let changed=false;
+          setData(prev=>{
+            const merged=deepMerge(prev,remote);
+            if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
+            changed=true;lsSet(merged);return merged;
+          });
+          if(changed){setSyncStatus("ok");setLastSync(Date.now())}
+        }
+      }).catch(()=>{});
+    },15000);
+    return()=>clearInterval(iv);
+  },[isOnline]);
+
+  // Save: local + Google Sheets (merge, then refresh)
+  const persist=useCallback(async(newData)=>{
+    const oldData=dataRef.current;
+    dataRef.current=newData;
+    setData(newData);
+    lsSet(newData);
+    if(!isOnline)return;
+    setSyncStatus("saving");
+    const changedKeys=Object.keys(newData).filter(k=>JSON.stringify(newData[k])!==JSON.stringify(oldData[k]));
+    let ok=true;
+    const uName=user?.name||"";
+    for(const k of changedKeys){
+      const result=await gsSet(k,newData[k],uName);
+      if(!result)ok=false;
+    }
+    // After saving, pull latest from remote to pick up other users' changes
+    if(ok){
+      try{
+        const remote=await gsGetAll();
+        if(remote&&Object.keys(remote).length>0){
+          const merged=deepMerge(newData,remote);
+          dataRef.current=merged;
+          setData(merged);
+          lsSet(merged);
+        }
+      }catch{}
+    }
+    setSyncStatus(ok?"ok":"error");
+    if(ok)setLastSync(Date.now());
+  },[isOnline,user]);
+
+  // Log shift on login
+  useEffect(()=>{
+    if(!user||!loaded)return;
+    if(!loginDayRef.current)loginDayRef.current=dkf(new Date());
+    const ldk=loginDayRef.current;
+    const cur=dataRef.current;
+    const dd=cur[ldk];const shifts=dd?.shifts||[];
+    if(!shifts.some(s=>s.name===user.name&&s.shift===user.shift)){
+      persist({...cur,[ldk]:{...dd,shifts:[...shifts,user]}});
+    }
+  },[user,loaded,persist]);
+
+  const saveSection=(dayKey,sectionKey,sectionData)=>{
+    const cur=dataRef.current;
+    const existing=cur[dayKey]?.[sectionKey]||{};
+    const merged={...existing};
+    Object.entries(sectionData).forEach(([siteId,siteSlots])=>{
+      merged[siteId]={...(merged[siteId]||{})};
+      Object.entries(siteSlots).forEach(([slot,fields])=>{
+        merged[siteId][slot]={...(merged[siteId]?.[slot]||{}),...fields};
+      });
+    });
+    persist({...cur,[dayKey]:{...cur[dayKey],[sectionKey]:merged}});
+  };
+
+  const exportCSV=()=>{
+    const dd=dataRef.current[dkv]||{};
+    let csv="Section,Site,Time Slot,Field,Value,Logged By,Logged At\n";
+    SECTIONS.forEach(sec=>{
+      const sd=dd[sec.id]||{};
+      sec.sites.forEach(site=>{
+        sec.slots.forEach((sl,si)=>{
+          const slotData=sd[site.id]?.[sl];
+          if(slotData){
+            sec.fields.forEach(f=>{
+              const v=slotData[f.id];
+              if(v!=null&&v!==""){
+                const who=slotData._user||"";
+                const when=slotData._ts?new Date(slotData._ts).toLocaleString("en-US"):"";
+                csv+='"'+[sec.label,site.n,sec.slotLabels[si],f.label,v,who,when].join('","')+'"\n';
+              }
+            });
+          }
+        });
+      });
+    });
+    const blob=new Blob([csv],{type:"text/csv"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download="ROCC_Data_"+dkv+".csv";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const saveNote=(dayKey,note)=>{
+    const cur=dataRef.current;
+    const dd=cur[dayKey]||{};
+    const notes=dd.notes||[];
+    persist({...cur,[dayKey]:{...dd,notes:[...notes,note]}});
+  };
+
+  const saveTurnover=(dayKey,turnover,fullList)=>{
+    const cur=dataRef.current;
+    const dd=cur[dayKey]||{};
+    if(fullList){
+      // Replacing the full turnovers array (for acknowledgment updates)
+      persist({...cur,[dayKey]:{...dd,turnovers:fullList}});
+    }else if(turnover){
+      // Appending a new turnover
+      const turnovers=dd.turnovers||[];
+      persist({...cur,[dayKey]:{...dd,turnovers:[...turnovers,turnover]}});
+    }
+  };
+
+  // Midnight report alarm
+  const [midnightAlert,setMidnightAlert]=useState(false);
+  const midnightDismissed=useRef(null);
+  useEffect(()=>{
+    if(!user)return;
+    const check=()=>{
+      const n=new Date();
+      const h=n.getHours(),m=n.getMinutes();
+      const todayStr=dkf(n);
+      // Trigger between 23:55 and 00:05
+      if((h===23&&m>=55)||(h===0&&m<=5)){
+        if(midnightDismissed.current!==todayStr){
+          setMidnightAlert(true);
+        }
+      }
+    };
+    check();
+    const iv=setInterval(check,30000); // check every 30 seconds
+    return()=>clearInterval(iv);
+  },[user]);
+  const dismissMidnight=()=>{
+    midnightDismissed.current=dkf(new Date());
+    setMidnightAlert(false);
+  };
+  const midnightDownload=()=>{
+    // Download report for today (or yesterday if just past midnight)
+    const n=new Date();
+    const reportDk=n.getHours()===0?dkf(new Date(n.getTime()-86400000)):dkf(n);
+    setShowReport(true);
+    dismissMidnight();
+  };
+
+  const switchOp=()=>setUser(null);
+  const reset=()=>{if(confirm("Clear ALL local data? This cannot be undone.")){setData({});lsSet({})}};
+
+  const refreshNow=async()=>{
+    if(!isOnline)return;
+    setSyncStatus("loading");
+    const remote=await gsGetAll();
+    if(remote){
+      const merged=deepMerge(dataRef.current,remote);
+      const changed=JSON.stringify(merged)!==JSON.stringify(dataRef.current);
+      if(changed){dataRef.current=merged;setData(merged);lsSet(merged)}
+      setSyncStatus("ok");setLastSync(Date.now());
+    }
+    else setSyncStatus("error");
+  };
+
+  if(!user)return <Login onLogin={setUser} onToggleTheme={toggleTheme} theme={theme}/>;
+  if(!loaded)return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:ft}}><div style={{textAlign:"center"}}><div className="sp" style={{width:20,height:20,marginBottom:12}}/><div style={{color:C.g,fontSize:13}}>Syncing with Google Sheets...</div></div></div>;
+
+  const todayDk=dkf(new Date());
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,color:C.txt,fontFamily:ft}}>
+      {/* HEADER */}
+      <div style={{background:C.s,borderBottom:"1px solid "+C.brd,padding:"7px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:50,flexWrap:"wrap",gap:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div><span style={{fontSize:8,letterSpacing:4,color:C.g,textTransform:"uppercase"}}>ROCC</span><span style={{fontSize:12,fontWeight:700,color:C.white,marginLeft:5}}>Ops Log</span></div>
+          {/* Sync indicator */}
+          <div style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer"}} onClick={refreshNow} title="Click to refresh from Google Sheets">
+            {syncStatus==="ok"&&<><div style={{width:6,height:6,borderRadius:"50%",background:C.g}}/><span style={{fontSize:9,color:C.g}}>Synced{lastSync?" "+fT(lastSync):""}</span></>}
+            {syncStatus==="saving"&&<><div className="sp"/><span style={{fontSize:9,color:C.y}}>Saving...</span></>}
+            {syncStatus==="loading"&&<><div className="sp"/><span style={{fontSize:9,color:C.y}}>Loading...</span></>}
+            {syncStatus==="error"&&<><div style={{width:6,height:6,borderRadius:"50%",background:C.r}}/><span style={{fontSize:9,color:C.r}}>Sync Error - Click to retry</span></>}
+            {syncStatus==="offline"&&<><div style={{width:6,height:6,borderRadius:"50%",background:C.o}}/><span style={{fontSize:9,color:C.o}}>Local Only</span></>}
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <button onClick={()=>setWeekOff(w=>w-1)} style={{padding:"3px 7px",background:C.bg,border:"1px solid "+C.brd,borderRadius:3,color:C.txt,fontSize:11,fontFamily:ft,cursor:"pointer"}}>{"\u2190"}</button>
+          <button onClick={()=>setWeekOff(0)} style={{padding:"3px 8px",background:weekOff===0?C.gd:C.bg,border:"1px solid "+(weekOff===0?C.g:C.brd),borderRadius:3,color:weekOff===0?C.g:C.txt,fontSize:10,fontFamily:ft,cursor:"pointer"}}>This Wk</button>
+          <button onClick={()=>setWeekOff(w=>w+1)} style={{padding:"3px 7px",background:C.bg,border:"1px solid "+C.brd,borderRadius:3,color:C.txt,fontSize:11,fontFamily:ft,cursor:"pointer"}}>{"\u2192"}</button>
+          <div style={{width:1,height:18,background:C.brd}}/>
+          <button onClick={()=>setShowReport(true)} style={{padding:"5px 10px",background:C.b,color:C.white,border:"none",borderRadius:4,fontSize:9,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>Report</button>
+          <button onClick={exportCSV} style={{padding:"5px 10px",background:C.o,color:C.white,border:"none",borderRadius:4,fontSize:9,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>Export CSV</button>
+          <button onClick={switchOp} style={{padding:"5px 10px",background:C.p,color:C.white,border:"none",borderRadius:4,fontSize:9,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>Switch Op</button>
+          <button onClick={toggleTheme} title={theme==="dark"?"Switch to Light Mode":"Switch to Dark Mode"} style={{padding:"5px 8px",background:"transparent",border:"1px solid "+C.brd,borderRadius:4,color:C.dim,fontSize:11,fontFamily:ft,cursor:"pointer"}}>{theme==="dark"?"\u2600":"🌙"}</button>
+          <button onClick={reset} style={{padding:"5px 7px",background:"transparent",border:"1px solid "+C.brd,borderRadius:4,color:C.dim,fontSize:9,fontFamily:ft,cursor:"pointer"}}>Reset</button>
+          <div style={{fontSize:10,color:C.dim}}><span style={{color:C.white,fontWeight:600}}>{user.name}</span>/{user.shift}</div>
+        </div>
+      </div>
+
+      <div style={{padding:"10px 14px",maxWidth:1500,margin:"0 auto"}}>
+        {/* DAY TABS */}
+        <div style={{display:"flex",gap:2,marginBottom:8}}>
+          {DS.map((d,i)=>{
+            const dt=getDD(weekStart,i);const idk=dkf(dt);const isToday=idk===todayDk;const isSel=i===selDay;const hasD=!!data[idk];
+            return(<button key={d} onClick={()=>setSelDay(i)} style={{flex:1,padding:"6px 2px",background:isSel?C.gd:hasD?C.s2:C.s,border:"2px solid "+(isSel?C.g:isToday?C.g+"88":hasD?C.brd2:C.brd),borderRadius:4,cursor:"pointer",position:"relative"}}>
+              <div style={{fontSize:10,fontWeight:700,color:isSel?C.g:isToday?C.white:C.dim,fontFamily:ft}}>{d}</div>
+              <div style={{fontSize:7,color:isSel?C.g:C.dim}}>{fS(dt)}</div>
+              {isToday&&!isSel&&<div style={{position:"absolute",top:-1,right:-1,width:5,height:5,borderRadius:"50%",background:C.g}}/>}
+            </button>);
+          })}
+        </div>
+
+        {/* SECTION TABS */}
+        <div style={{display:"flex",gap:2,marginBottom:10,flexWrap:"wrap"}}>
+          <button onClick={()=>setSecIdx(-1)} style={{padding:"5px 12px",background:secIdx===-1?C.g+"22":"transparent",border:"1px solid "+(secIdx===-1?C.g:C.brd),borderRadius:4,color:secIdx===-1?C.g:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-1?700:400}}>Dashboard</button>
+          <button onClick={()=>setSecIdx(-2)} style={{padding:"5px 12px",background:secIdx===-2?C.y+"22":"transparent",border:"1px solid "+(secIdx===-2?C.y:C.brd),borderRadius:4,color:secIdx===-2?C.y:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-2?700:400}}>Turnover</button>
+          {SECTIONS.map((s,i)=><button key={s.id} onClick={()=>setSecIdx(i)} style={{padding:"5px 10px",background:i===secIdx?s.color+"22":"transparent",border:"1px solid "+(i===secIdx?s.color:C.brd),borderRadius:4,color:i===secIdx?s.color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:i===secIdx?700:400,whiteSpace:"nowrap"}}>{s.label}</button>)}
+        </div>
+
+        {/* CONTENT */}
+        {secIdx===-1
+          ? <Dashboard data={data} dayKey={dkv} user={user} onSaveNote={(note)=>saveNote(dkv,note)}/>
+          : secIdx===-2
+          ? <Turnover data={data} dayKey={dkv} user={user} onSave={saveTurnover}/>
+          : <div>
+              <div style={{fontSize:12,fontWeight:700,color:C.white,marginBottom:6}}>
+                {DAYS[selDay]} {fS(selDate)} - {sec.label} <span style={{fontSize:10,fontWeight:400,color:C.dim}}>({sec.desc})</span>
+              </div>
+              <FastGrid key={sec.id+dkv} sectionKey={sec.id} sites={sec.sites} slots={sec.slots} slotLabels={sec.slotLabels} fields={sec.fields} data={data} dayKey={dkv} onSave={saveSection} user={user} siteExtra={sec.siteExtra}/>
+            </div>
+        }
+      </div>
+
+      {/* Midnight Report Alarm */}
+      {midnightAlert&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}}>
+        <div className="alarm-box" style={{background:C.s,border:"2px solid "+C.r,borderRadius:10,padding:"30px 40px",maxWidth:440,textAlign:"center"}}>
+          <div style={{fontSize:28,marginBottom:8}}>&#9200;</div>
+          <div style={{fontSize:16,fontWeight:700,color:C.r,marginBottom:6,fontFamily:ft}}>END OF DAY</div>
+          <div style={{fontSize:12,color:C.white,marginBottom:4,fontFamily:ft}}>It's midnight — time to save today's report.</div>
+          <div style={{fontSize:10,color:C.dim,marginBottom:20,fontFamily:ft}}>Download the daily report and/or CSV before the day rolls over.</div>
+          <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+            <button onClick={midnightDownload} style={{padding:"10px 20px",background:C.g,color:C.bg,border:"none",borderRadius:5,fontSize:12,fontWeight:700,fontFamily:ft,cursor:"pointer",letterSpacing:1}}>Open Report</button>
+            <button onClick={()=>{exportCSV();dismissMidnight()}} style={{padding:"10px 20px",background:C.o,color:"#fff",border:"none",borderRadius:5,fontSize:12,fontWeight:700,fontFamily:ft,cursor:"pointer",letterSpacing:1}}>Export CSV</button>
+            <button onClick={dismissMidnight} style={{padding:"10px 20px",background:"transparent",border:"1px solid "+C.brd,borderRadius:5,color:C.dim,fontSize:12,fontFamily:ft,cursor:"pointer"}}>Dismiss</button>
+          </div>
+          <div style={{fontSize:9,color:C.dim,marginTop:14,fontFamily:ft}}>This alert appears once between 23:55 and 00:05</div>
+        </div>
+      </div>}
+
+      {showReport&&<Report data={data} dayKey={dkv} user={user} onClose={()=>setShowReport(false)}/>}
+      <div style={{textAlign:"center",padding:"12px 0",fontSize:9,color:C.dim,borderTop:"1px solid "+C.brd,marginTop:12}}>ROCC Operations Log v4.0 | AES Clean Energy | Developed by Rocky Dev Co.</div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

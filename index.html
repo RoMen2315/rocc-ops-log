@@ -65,7 +65,7 @@ async function gsGetAll(){
   if(!isOnline)return null;
   try{
     const url=SCRIPT_URL+"?action=getAll&t="+Date.now()+"&r="+Math.random();
-    const r=await fetch(url,{redirect:"follow",cache:"no-store",headers:{"Cache-Control":"no-cache"}});
+    const r=await fetch(url,{redirect:"follow"});
     if(!r.ok)return null;
     const text=await r.text();
     let j;try{j=JSON.parse(text)}catch{console.error("gsGetAll parse fail",text);return null}

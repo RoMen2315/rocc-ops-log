@@ -90,7 +90,9 @@ Tips:
 | Blank page on SharePoint | Use GitHub Pages: https://romen2315.github.io/rocc-ops-log/ |
 | "Sync Error" | Click the sync indicator to retry. Check internet connection |
 | Data not syncing | Make sure everyone uses the same URL. Click sync to force refresh |
-| Need to update | Push changes to GitHub. Tell everyone to Ctrl+F5 |
+| Need to update | Push changes to GitHub. Tell everyone to **Ctrl+F5** |
+| Got kicked to login after refresh | Hit **Ctrl+F5** once to load the latest version. After that, normal refresh will keep you logged in |
+| Not seeing other operators' data | **Ctrl+F5** to get the latest sync fix. Data should appear within 15 seconds |
 
 ---
 

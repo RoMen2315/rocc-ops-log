@@ -711,18 +711,38 @@ function FastGrid({sectionKey,sites,slots,slotLabels,fields,data,dayKey:dkv,onSa
   });
 
   const [rows,setRows]=useState(buildRows);
+  const [localEdits,setLocalEdits]=useState({});
 
-  // ONLY rebuild rows when day or section changes, NOT on data refresh
+  // Rebuild rows when day/section changes OR when remote data updates
   const prevKey=useRef(dkv+"|"+sectionKey);
+  const prevDataSig=useRef(JSON.stringify(dayData));
   useEffect(()=>{
     const k=dkv+"|"+sectionKey;
-    if(k!==prevKey.current){prevKey.current=k;setRows(buildRows())}
-  },[dkv,sectionKey]);
+    const sig=JSON.stringify(dayData);
+    if(k!==prevKey.current){prevKey.current=k;prevDataSig.current=sig;setLocalEdits({});setRows(buildRows())}
+    else if(sig!==prevDataSig.current){
+      prevDataSig.current=sig;
+      // Merge remote data into rows without overwriting unsaved local edits
+      setRows(prev=>sites.map((s,si)=>{
+        const r={id:s.id,slots:{}};
+        slots.forEach(sl=>{
+          r.slots[sl]={};
+          fields.forEach(f=>{
+            const editKey=s.id+"|"+sl+"|"+f.id;
+            if(localEdits[editKey]!==undefined){r.slots[sl][f.id]=prev[si]?.slots[sl]?.[f.id]??""}
+            else{r.slots[sl][f.id]=dayData[s.id]?.[sl]?.[f.id]??""}
+          });
+        });
+        return r;
+      }));
+    }
+  },[dkv,sectionKey,dayData]);
 
   const set=(si,sl,fid,val)=>{
     const n=[...rows];
     n[si]={...n[si],slots:{...n[si].slots,[sl]:{...n[si].slots[sl],[fid]:val}}};
     setRows(n);
+    setLocalEdits(prev=>({...prev,[sites[si].id+"|"+sl+"|"+fid]:true}));
   };
 
   const allF=useMemo(()=>{
@@ -749,6 +769,7 @@ function FastGrid({sectionKey,sites,slots,slotLabels,fields,data,dayKey:dkv,onSa
       if(Object.keys(sd).length)result[r.id]=sd;
     });
     onSave(dkv,sectionKey,result);
+    setLocalEdits({});
   };
 
   const hasData=rows.some(r=>slots.some(sl=>fields.some(f=>r.slots[sl][f.id]!=="")));

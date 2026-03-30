@@ -70,7 +70,16 @@ async function gsGetAll(){
     const text=await r.text();
     let j;try{j=JSON.parse(text)}catch{console.error("gsGetAll parse fail",text);return null}
     const out={};
-    Object.entries(j.data||{}).forEach(([k,v])=>{try{out[k]=JSON.parse(v)}catch{out[k]=v}});
+    Object.entries(j.data||{}).forEach(([k,v])=>{
+      let val;try{val=JSON.parse(v)}catch{val=v}
+      // Normalize date keys: convert long date strings to YYYY-MM-DD format
+      let nk=k;
+      try{const d=new Date(k);if(!isNaN(d.getTime())&&k.length>10){nk=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}}catch{}
+      // If normalized key already exists, merge
+      if(out[nk]&&typeof out[nk]==="object"&&typeof val==="object"){
+        Object.entries(val).forEach(([sk,sv])=>{if(!out[nk][sk])out[nk][sk]=sv;else if(Array.isArray(sv)&&Array.isArray(out[nk][sk])){sv.forEach(item=>{if(!out[nk][sk].some(x=>JSON.stringify(x)===JSON.stringify(item)))out[nk][sk].push(item)})}else if(typeof sv==="object"&&typeof out[nk][sk]==="object"){Object.assign(out[nk][sk],sv)}});
+      }else{out[nk]=val}
+    });
     return out;
   }catch(e){console.error("gsGetAll",e);return null}
 }

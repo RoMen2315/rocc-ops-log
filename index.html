@@ -64,9 +64,11 @@ const isOnline=SCRIPT_URL&&!SCRIPT_URL.includes("PASTE_YOUR");
 async function gsGetAll(){
   if(!isOnline)return null;
   try{
-    const r=await fetch(SCRIPT_URL+"?action=getAll&t="+Date.now(),{redirect:"follow",cache:"no-store"});
+    const url=SCRIPT_URL+"?action=getAll&t="+Date.now()+"&r="+Math.random();
+    const r=await fetch(url,{redirect:"follow",cache:"no-store",headers:{"Cache-Control":"no-cache"}});
     if(!r.ok)return null;
-    const j=await r.json();
+    const text=await r.text();
+    let j;try{j=JSON.parse(text)}catch{console.error("gsGetAll parse fail",text);return null}
     const out={};
     Object.entries(j.data||{}).forEach(([k,v])=>{try{out[k]=JSON.parse(v)}catch{out[k]=v}});
     return out;
@@ -1472,7 +1474,7 @@ function App(){
       </div>}
 
       {showReport&&<Report data={data} dayKey={dkv} user={user} onClose={()=>setShowReport(false)}/>}
-      <div style={{textAlign:"center",padding:"12px 0",fontSize:9,color:C.dim,borderTop:"1px solid "+C.brd,marginTop:12}}>ROCC Operations Log v4.0 | AES Clean Energy | Developed by Rocky Dev Co.</div>
+      <div style={{textAlign:"center",padding:"12px 0",fontSize:9,color:C.dim,borderTop:"1px solid "+C.brd,marginTop:12}}>ROCC Operations Log v4.1 | AES Clean Energy | Developed by Rocky Dev Co.</div>
     </div>
   );
 }

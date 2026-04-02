@@ -537,12 +537,37 @@ function VAR002({data,user,onSave}){
 // ================================================================
 // OUTAGE TRACKER
 // ================================================================
+const SEED_OUTAGES=(()=>{
+  const n=Date.now();
+  return [
+    {id:"OUT-EST-001",site:"Estrella BESS",siteId:"est",caiso:"POLRIS_2_ASEBT1",type:"Scheduled",priority:3,start:n+17*3600000,expectedEnd:null,actualEnd:null,mw:0,description:"Scheduled maintenance",cause:"Maintenance",notifications:{sc:false,top:false,field:false,asset:false,market:false},operator:"System",status:"SCHEDULED",updates:[]},
+    {id:"OUT-RED-001",site:"Redwood Sub",siteId:null,caiso:"",type:"Scheduled",priority:3,start:n+7*3600000,expectedEnd:null,actualEnd:null,mw:0,description:"Scheduled substation work",cause:"Maintenance",notifications:{sc:false,top:false,field:false,asset:false,market:false},operator:"System",status:"SCHEDULED",updates:[]},
+    {id:"OUT-BSC-001",site:"Bayshore C",siteId:"bsc",caiso:"BIGSKY_2_BSKSR8",type:"Scheduled",priority:3,start:n+24*3600000,expectedEnd:null,actualEnd:null,mw:0,description:"Scheduled maintenance",cause:"Maintenance",notifications:{sc:false,top:false,field:false,asset:false,market:false},operator:"System",status:"SCHEDULED",updates:[]},
+    {id:"OUT-MCFC-001",site:"McFarland C",siteId:"mcfc",caiso:"MCFLND_5_MSCBT1",type:"Forced",priority:1,start:n-16745*60000,expectedEnd:null,actualEnd:null,mw:185,description:"Site forced outage - all nodes offline",cause:"Feeder Trip",notifications:{sc:true,top:true,field:true,asset:true,market:true},operator:"System",status:"ACTIVE",updates:[]},
+    {id:"OUT-HAMC-001",site:"Hamlin Substation (C)",siteId:"ham",caiso:"HAMLIN_1_BLDSB1",type:"Forced",priority:1,start:n-6560*60000,expectedEnd:null,actualEnd:null,mw:87,description:"Substation forced outage",cause:"GSU Trip",notifications:{sc:true,top:true,field:true,asset:false,market:true},operator:"System",status:"ACTIVE",updates:[],outageId:"15755987"},
+    {id:"OUT-MCFA-001",site:"McFarland A BESS",siteId:"mcfa",caiso:"MCFLND_5_MFSBT1",type:"Forced",priority:1,start:n-6560*60000,expectedEnd:null,actualEnd:null,mw:84,description:"BESS forced outage",cause:"Feeder Trip",notifications:{sc:true,top:true,field:true,asset:false,market:true},operator:"System",status:"ACTIVE",updates:[],outageId:"17668112"},
+    {id:"OUT-SPR-001",site:"San Pablo Raceway (C)",siteId:"spr",caiso:"BGSKYN_2_ASPSR2",type:"Forced",priority:1,start:n-6560*60000,expectedEnd:null,actualEnd:null,mw:63,description:"Site forced outage",cause:"Feeder Trip",notifications:{sc:true,top:true,field:true,asset:false,market:true},operator:"System",status:"ACTIVE",updates:[],outageId:"17854607"},
+    {id:"OUT-WOOD-002",site:"Woodmere",siteId:"wood",caiso:"LAMONT_1_SOLAR3",type:"Forced",priority:2,start:n-695*60000,expectedEnd:null,actualEnd:null,mw:0,description:"Forced outage",cause:"Inverter Failure",notifications:{sc:true,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"19888252"},
+    {id:"OUT-ANT2-001",site:"Antex 2",siteId:"ae2",caiso:"BGSKYN_2_AS2SR1",type:"Forced",priority:2,start:n-608*60000,expectedEnd:null,actualEnd:null,mw:0,description:"Forced outage",cause:"Inverter Failure",notifications:{sc:true,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"18991210"},
+    {id:"OUT-MOJ-001",site:"Mojave West",siteId:"moj",caiso:"MOJAVW_2_SOLAR",type:"Forced",priority:2,start:n-392*60000,expectedEnd:null,actualEnd:null,mw:0,description:"Forced outage",cause:"Comms Loss",notifications:{sc:true,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"19105354"},
+    {id:"OUT-GBB-001",site:"Green Bean Work B",siteId:"gbb",caiso:"PIUTE_6_GNBSR1",type:"Forced",priority:3,start:n-200*60000,expectedEnd:null,actualEnd:null,mw:0,description:"Forced outage",cause:"Inverter Failure",notifications:{sc:false,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[]},
+    {id:"OUT-LPV-001",site:"Lemoore PV Land 1",siteId:null,caiso:"HENRTA_6_SOLAR1",type:"Forced",priority:3,start:n-200*60000,expectedEnd:null,actualEnd:null,mw:0,description:"Forced outage",cause:"Inverter Failure",notifications:{sc:false,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"19213793"},
+    {id:"OUT-LLRC-002",site:"LLRC",siteId:null,caiso:"LITLRK_6_SOLAR1",type:"Scheduled",priority:3,start:n-32*60000,expectedEnd:n+32*3600000,actualEnd:null,mw:0,description:"Scheduled maintenance",cause:"Maintenance",notifications:{sc:true,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"17274107"},
+    {id:"OUT-WOOD-003",site:"Woodmere",siteId:"wood",caiso:"LAMONT_1_SOLAR3",type:"Scheduled",priority:3,start:n-32*60000,expectedEnd:n+32*3600000,actualEnd:null,mw:0,description:"Scheduled maintenance",cause:"Maintenance",notifications:{sc:true,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"19441474"},
+    {id:"OUT-BKPV-002",site:"Bakersfield PV",siteId:null,caiso:"MAGUND_1_BKSSR2",type:"Scheduled",priority:4,start:n-23*60000,expectedEnd:n+23*3600000,actualEnd:null,mw:0,description:"Scheduled maintenance",cause:"Maintenance",notifications:{sc:false,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"19867604"},
+    {id:"OUT-DEL1-002",site:"Delano Land 1",siteId:null,caiso:"SMYRNA_1_DL1SR1",type:"Scheduled",priority:4,start:n-23*60000,expectedEnd:n+23*3600000,actualEnd:null,mw:0,description:"Scheduled maintenance",cause:"Maintenance",notifications:{sc:false,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"19851746"},
+    {id:"OUT-MAN1-003",site:"Manteca Land 1",siteId:null,caiso:"MANTEC_1_ML1SR1",type:"Scheduled",priority:4,start:n-23*60000,expectedEnd:n+23*3600000,actualEnd:null,mw:0,description:"Scheduled maintenance",cause:"Maintenance",notifications:{sc:false,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"19797089"},
+    {id:"OUT-MAN1-004",site:"Manteca Land 1",siteId:null,caiso:"MANTEC_1_ML1SR1",type:"Scheduled",priority:4,start:n-23*60000,expectedEnd:n+23*3600000,actualEnd:null,mw:0,description:"Scheduled maintenance",cause:"Maintenance",notifications:{sc:false,top:false,field:true,asset:false,market:false},operator:"System",status:"ACTIVE",updates:[],outageId:"19831130"}
+  ];
+})();
+
 function OutageTracker({data,user,onSave}){
   const [showForm,setShowForm]=useState(false);
   const [detail,setDetail]=useState(null);
   const [filter,setFilter]=useState("ACTIVE");
   const [typeFilter,setTypeFilter]=useState("");
-  const outages=Array.isArray(data.outages)?data.outages:[];
+  const rawOutages=Array.isArray(data.outages)?data.outages:[];
+  const outages=rawOutages.length>0?rawOutages:SEED_OUTAGES;
 
   const active=outages.filter(o=>o.status==="ACTIVE");
   const scheduled=outages.filter(o=>o.status==="SCHEDULED");

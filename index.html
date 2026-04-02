@@ -534,6 +534,318 @@ function VAR002({data,user,onSave}){
   </div>;
 }
 
+// ================================================================
+// OUTAGE TRACKER
+// ================================================================
+function OutageTracker({data,user,onSave}){
+  const [showForm,setShowForm]=useState(false);
+  const [detail,setDetail]=useState(null);
+  const [filter,setFilter]=useState("ACTIVE");
+  const [typeFilter,setTypeFilter]=useState("");
+  const outages=Array.isArray(data.outages)?data.outages:[];
+
+  const active=outages.filter(o=>o.status==="ACTIVE");
+  const scheduled=outages.filter(o=>o.status==="SCHEDULED");
+  const now=Date.now();
+
+  // Generate unique ID
+  const genId=()=>"OUT-"+dkf(new Date())+"-"+String(outages.length+1).padStart(3,"0");
+
+  const saveOutage=(outage)=>{
+    const updated=[...outages];
+    const idx=updated.findIndex(o=>o.id===outage.id);
+    if(idx>=0)updated[idx]=outage;
+    else updated.push(outage);
+    onSave({outages:updated});
+  };
+
+  const resolveOutage=(id,notes)=>{
+    const updated=outages.map(o=>o.id===id?{...o,status:"RESOLVED",actualEnd:Date.now(),updates:[...(o.updates||[]),{at:Date.now(),by:user.name,note:"RESOLVED: "+(notes||"Outage resolved")}]}:o);
+    onSave({outages:updated});
+    setDetail(null);
+  };
+
+  const addUpdate=(id,note)=>{
+    const updated=outages.map(o=>o.id===id?{...o,updates:[...(o.updates||[]),{at:Date.now(),by:user.name,note}]}:o);
+    onSave({outages:updated});
+  };
+
+  // Bar chart component
+  const BarChart=({items,color,label,maxVal})=>{
+    if(!items.length)return <div style={{padding:12,fontSize:11,color:C.dim,textAlign:"center"}}>No {label}</div>;
+    const mx=maxVal||Math.max(...items.map(i=>i.val),1);
+    return <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      {items.slice(0,8).map((item,i)=><div key={i} onClick={()=>setDetail(item.outage)} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:120,fontSize:9,color:C.white,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
+        <div style={{flex:1,height:18,background:C.bg,borderRadius:3,overflow:"hidden",position:"relative"}}>
+          <div style={{width:Math.min(item.val/mx*100,100)+"%",height:"100%",background:typeof color==="function"?color(item):color,borderRadius:3,transition:"width .3s"}}/>
+          <div style={{position:"absolute",right:4,top:2,fontSize:8,color:C.white}}>{item.label}</div>
+        </div>
+      </div>)}
+    </div>;
+  };
+
+  // Prepare chart data
+  const startingSoon=scheduled.filter(o=>o.start>now).sort((a,b)=>a.start-b.start).map(o=>{
+    const hrs=Math.round((o.start-now)/3600000*10)/10;
+    return {name:o.site,val:Math.max(48-hrs,1),label:hrs<1?Math.round(hrs*60)+"m":hrs.toFixed(1)+"h",outage:o};
+  });
+
+  const endingSoon=outages.filter(o=>o.status!=="RESOLVED"&&o.expectedEnd&&o.expectedEnd>now).sort((a,b)=>a.expectedEnd-b.expectedEnd).map(o=>{
+    const hrs=Math.round((o.expectedEnd-now)/3600000*10)/10;
+    return {name:o.site,val:Math.max(48-hrs,1),label:hrs<1?Math.round(hrs*60)+"m":hrs.toFixed(1)+"h",outage:o};
+  });
+
+  const currentActive=active.sort((a,b)=>(now-a.start)-(now-b.start)).reverse().map(o=>{
+    const mins=Math.round((now-o.start)/60000);
+    const hrs=mins/60;
+    const label=hrs<1?mins+"m":hrs.toFixed(1)+"h";
+    return {name:o.site,val:mins,label,outage:o,hrs};
+  });
+
+  // Outage Entry Form Modal
+  const EntryForm=()=>{
+    const [site,setSite]=useState("");
+    const [siteSearch,setSiteSearch]=useState("");
+    const [caiso,setCaiso]=useState("");
+    const [type,setType]=useState("Forced");
+    const [priority,setPriority]=useState(2);
+    const [start,setStart]=useState(new Date().toISOString().slice(0,16));
+    const [expectedEnd,setExpectedEnd]=useState("");
+    const [mw,setMw]=useState("");
+    const [desc,setDesc]=useState("");
+    const [cause,setCause]=useState("");
+    const [customCause,setCustomCause]=useState("");
+    const [notifs,setNotifs]=useState({sc:false,top:false,field:false,asset:false,market:false});
+    const causes=["Inverter Failure","Feeder Trip","GSU Trip","Comms Loss","Weather","Utility Switching","Maintenance","Other"];
+
+    const siteResults=siteSearch.length>=2&&REF_DATA?REF_DATA.sites.filter(s=>s.name.toLowerCase().includes(siteSearch.toLowerCase())||s.caiso.toLowerCase().includes(siteSearch.toLowerCase())).slice(0,8):[];
+
+    const selectSite=(s)=>{setSite(s.name);setCaiso(s.caiso);setSiteSearch(s.name)};
+
+    const submit=()=>{
+      if(!site)return;
+      const outage={
+        id:genId(),site,caiso,type,priority:parseInt(priority),
+        start:new Date(start).getTime(),
+        expectedEnd:expectedEnd?new Date(expectedEnd).getTime():null,
+        actualEnd:null,mw:parseFloat(mw)||0,
+        description:desc,cause:cause==="Other"?customCause:cause,
+        notifications:notifs,operator:user.name,
+        status:type==="Scheduled"&&new Date(start).getTime()>now?"SCHEDULED":"ACTIVE",
+        updates:[]
+      };
+      saveOutage(outage);
+      setShowForm(false);
+    };
+
+    const fld={width:"100%",padding:"8px 10px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:11,fontFamily:ft,outline:"none"};
+    const lbl={fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:4};
+
+    return <div onClick={()=>setShowForm(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.s,border:"1px solid "+C.brd,borderRadius:8,padding:24,width:520,maxWidth:"95vw",maxHeight:"85vh",overflow:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:C.white}}>Log New Outage</div>
+          <button onClick={()=>setShowForm(false)} style={{background:"none",border:"none",color:C.dim,fontSize:16,cursor:"pointer"}}>X</button>
+        </div>
+
+        <div style={{marginBottom:12}}>
+          <div style={lbl}>Site *</div>
+          <input value={siteSearch} onChange={e=>{setSiteSearch(e.target.value);setSite("")}} placeholder="Search site name or CAISO ID..." style={fld}/>
+          {siteResults.length>0&&!site&&<div style={{background:C.s2,border:"1px solid "+C.brd,borderRadius:4,maxHeight:150,overflow:"auto",marginTop:2}}>
+            {siteResults.map((s,i)=><div key={i} onClick={()=>selectSite(s)} style={{padding:"6px 10px",cursor:"pointer",fontSize:10,borderBottom:"1px solid "+C.brd}} onMouseEnter={e=>{e.currentTarget.style.background=C.bg}} onMouseLeave={e=>{e.currentTarget.style.background="transparent"}}>
+              <span style={{color:C.white}}>{s.name}</span>{s.caiso&&<span style={{color:C.b,marginLeft:8}}>{s.caiso}</span>}
+            </div>)}
+          </div>}
+          {caiso&&<div style={{fontSize:9,color:C.b,marginTop:4}}>CAISO: {caiso}</div>}
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <div><div style={lbl}>Type</div>
+            <select value={type} onChange={e=>setType(e.target.value)} style={fld}>
+              <option>Forced</option><option>Scheduled</option><option>Curtailment</option><option>Derate</option>
+            </select></div>
+          <div><div style={lbl}>Priority</div>
+            <select value={priority} onChange={e=>setPriority(e.target.value)} style={fld}>
+              <option value={1}>1 - Critical</option><option value={2}>2 - High</option><option value={3}>3 - Low</option><option value={4}>4 - Info</option>
+            </select></div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <div><div style={lbl}>Start Time</div><input type="datetime-local" value={start} onChange={e=>setStart(e.target.value)} style={fld}/></div>
+          <div><div style={lbl}>Expected End</div><input type="datetime-local" value={expectedEnd} onChange={e=>setExpectedEnd(e.target.value)} style={fld}/></div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <div><div style={lbl}>MW Impact</div><input type="number" value={mw} onChange={e=>setMw(e.target.value)} placeholder="0" style={fld}/></div>
+          <div><div style={lbl}>Cause</div>
+            <select value={cause} onChange={e=>setCause(e.target.value)} style={fld}>
+              <option value="">Select...</option>{causes.map(c=><option key={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+        {cause==="Other"&&<div style={{marginBottom:12}}><input value={customCause} onChange={e=>setCustomCause(e.target.value)} placeholder="Describe cause..." style={fld}/></div>}
+
+        <div style={{marginBottom:12}}>
+          <div style={lbl}>Description</div>
+          <textarea value={desc} onChange={e=>setDesc(e.target.value)} rows={2} placeholder="What happened..." style={{...fld,resize:"vertical"}}/>
+        </div>
+
+        <div style={{marginBottom:16}}>
+          <div style={lbl}>Notifications Sent</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:10}}>
+            {[["sc","Sched. Coord."],["top","Trans. Operator"],["field","O&M Field"],["asset","Asset Mgmt"],["market","Market Ops"]].map(([k,l])=>
+              <label key={k} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:C.white,cursor:"pointer"}}>
+                <input type="checkbox" checked={notifs[k]} onChange={e=>setNotifs({...notifs,[k]:e.target.checked})} style={{width:13,height:13}}/>{l}
+              </label>
+            )}
+          </div>
+        </div>
+
+        <button onClick={submit} disabled={!site} style={{width:"100%",padding:"10px 0",background:site?C.g:C.brd,color:site?C.bg:C.dim,border:"none",borderRadius:5,fontSize:11,fontWeight:700,fontFamily:ft,cursor:site?"pointer":"not-allowed"}}>Log Outage</button>
+      </div>
+    </div>;
+  };
+
+  // Outage Detail Modal
+  const DetailView=({outage})=>{
+    const [updateNote,setUpdateNote]=useState("");
+    const [resolveNote,setResolveNote]=useState("");
+    const [showResolve,setShowResolve]=useState(false);
+    const dur=outage.actualEnd?(outage.actualEnd-outage.start):(now-outage.start);
+    const durH=(dur/3600000).toFixed(1);
+    const ref=REF_DATA?getRefForSite(outage.site):{};
+    return <div onClick={()=>setDetail(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.s,border:"1px solid "+C.brd,borderRadius:8,padding:24,width:520,maxWidth:"95vw",maxHeight:"85vh",overflow:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:C.white}}>{outage.site}</div>
+            <div style={{fontSize:9,color:C.b}}>{outage.caiso} | {outage.id}</div>
+          </div>
+          <button onClick={()=>setDetail(null)} style={{background:"none",border:"none",color:C.dim,fontSize:16,cursor:"pointer"}}>X</button>
+        </div>
+
+        <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+          <span style={{fontSize:9,padding:"3px 8px",borderRadius:3,background:outage.status==="ACTIVE"?C.r+"33":outage.status==="SCHEDULED"?C.y+"33":C.g+"33",color:outage.status==="ACTIVE"?C.r:outage.status==="SCHEDULED"?C.y:C.g,fontWeight:700}}>{outage.status}</span>
+          <span style={{fontSize:9,padding:"3px 8px",borderRadius:3,background:C.b+"22",color:C.b}}>{outage.type}</span>
+          <span style={{fontSize:9,padding:"3px 8px",borderRadius:3,background:outage.priority<=2?C.r+"22":C.y+"22",color:outage.priority<=2?C.r:C.y}}>P{outage.priority}</span>
+          <span style={{fontSize:9,padding:"3px 8px",borderRadius:3,background:C.bg,color:C.dim}}>{durH}h</span>
+          {outage.mw>0&&<span style={{fontSize:9,padding:"3px 8px",borderRadius:3,background:C.o+"22",color:C.o}}>{outage.mw} MW</span>}
+        </div>
+
+        <div style={{fontSize:11,color:C.white,marginBottom:6}}>{outage.description}</div>
+        <div style={{fontSize:10,color:C.dim,marginBottom:12}}>Cause: {outage.cause} | By: {outage.operator} | Start: {new Date(outage.start).toLocaleString()}</div>
+
+        {ref.rtc&&<div style={{background:C.bg,borderRadius:4,padding:8,marginBottom:12,fontSize:10}}>
+          <div style={{color:C.dim,marginBottom:4}}>QUICK CONTACTS</div>
+          <div style={{color:C.y}}>SC: {ref.rtc.sc}</div>
+          <div style={{color:C.b}}>TO: {ref.rtc.to}</div>
+        </div>}
+
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Timeline</div>
+          {(outage.updates||[]).map((u,i)=><div key={i} style={{borderLeft:"2px solid "+C.brd,paddingLeft:10,marginBottom:6}}>
+            <div style={{fontSize:9,color:C.dim}}>{new Date(u.at).toLocaleString()} - {u.by}</div>
+            <div style={{fontSize:10,color:C.white}}>{u.note}</div>
+          </div>)}
+          {(!outage.updates||!outage.updates.length)&&<div style={{fontSize:10,color:C.dim}}>No updates yet</div>}
+        </div>
+
+        {outage.status!=="RESOLVED"&&<>
+          <div style={{display:"flex",gap:6,marginBottom:8}}>
+            <input value={updateNote} onChange={e=>setUpdateNote(e.target.value)} placeholder="Add update..." style={{flex:1,padding:"6px 10px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:10,fontFamily:ft,outline:"none"}}/>
+            <button onClick={()=>{if(updateNote.trim()){addUpdate(outage.id,updateNote);setUpdateNote("");setDetail({...outage,updates:[...(outage.updates||[]),{at:now,by:user.name,note:updateNote}]})}}} style={{padding:"6px 12px",background:C.b,color:"#fff",border:"none",borderRadius:4,fontSize:10,fontFamily:ft,cursor:"pointer"}}>Add</button>
+          </div>
+          {!showResolve?<button onClick={()=>setShowResolve(true)} style={{width:"100%",padding:"8px 0",background:C.g+"22",border:"1px solid "+C.g,borderRadius:4,color:C.g,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:600}}>Resolve Outage</button>
+          :<div style={{background:C.g+"11",border:"1px solid "+C.g+"44",borderRadius:4,padding:10}}>
+            <input value={resolveNote} onChange={e=>setResolveNote(e.target.value)} placeholder="Resolution notes..." style={{width:"100%",padding:"6px 10px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:10,fontFamily:ft,outline:"none",marginBottom:6}}/>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>resolveOutage(outage.id,resolveNote)} style={{flex:1,padding:"6px 0",background:C.g,color:C.bg,border:"none",borderRadius:4,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:700}}>Confirm Resolve</button>
+              <button onClick={()=>setShowResolve(false)} style={{padding:"6px 12px",background:"transparent",border:"1px solid "+C.brd,borderRadius:4,color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer"}}>Cancel</button>
+            </div>
+          </div>}
+        </>}
+      </div>
+    </div>;
+  };
+
+  const filtered=outages.filter(o=>{
+    if(filter&&o.status!==filter)return false;
+    if(typeFilter&&o.type!==typeFilter)return false;
+    return true;
+  }).sort((a,b)=>b.start-a.start);
+
+  const thS={padding:"6px 8px",textAlign:"left",fontSize:8,color:C.dim,letterSpacing:2,borderBottom:"1px solid "+C.brd,textTransform:"uppercase"};
+  const tdS={padding:"6px 8px",fontSize:10,borderBottom:"1px solid "+C.brd,color:C.white};
+
+  return <div>
+    {/* Header */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <span style={{fontSize:13,fontWeight:700,color:C.white}}>Outage Tracker</span>
+        {active.length>0&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:C.r+"33",color:C.r,fontWeight:700}}>{active.length} Active</span>}
+      </div>
+      <button onClick={()=>setShowForm(true)} style={{padding:"6px 16px",background:C.g,color:C.bg,border:"none",borderRadius:4,fontSize:10,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>+ Log Outage</button>
+    </div>
+
+    {/* Three Panel Charts */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:10,marginBottom:16}}>
+      <div style={{background:C.s,border:"1px solid "+C.brd,borderRadius:6,padding:12}}>
+        <div style={{fontSize:9,color:C.b,textTransform:"uppercase",letterSpacing:2,marginBottom:8,fontWeight:700}}>Scheduled - Starting Soon</div>
+        <BarChart items={startingSoon} color={C.b} label="scheduled outages"/>
+      </div>
+      <div style={{background:C.s,border:"1px solid "+C.brd,borderRadius:6,padding:12}}>
+        <div style={{fontSize:9,color:C.g,textTransform:"uppercase",letterSpacing:2,marginBottom:8,fontWeight:700}}>Ending Soon</div>
+        <BarChart items={endingSoon} color={C.g} label="outages ending soon"/>
+      </div>
+      <div style={{background:C.s,border:"1px solid "+C.brd,borderRadius:6,padding:12}}>
+        <div style={{fontSize:9,color:C.r,textTransform:"uppercase",letterSpacing:2,marginBottom:8,fontWeight:700}}>Current Active</div>
+        <BarChart items={currentActive} color={item=>item.hrs>24?C.r:item.hrs>4?C.y:C.g} label="active outages"/>
+      </div>
+    </div>
+
+    {/* Filters */}
+    <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+      {["","ACTIVE","SCHEDULED","RESOLVED"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"4px 10px",background:filter===f?(f==="ACTIVE"?C.r:f==="SCHEDULED"?C.y:f==="RESOLVED"?C.g:C.b)+"22":"transparent",border:"1px solid "+(filter===f?(f==="ACTIVE"?C.r:f==="SCHEDULED"?C.y:f==="RESOLVED"?C.g:C.b):C.brd),borderRadius:4,color:filter===f?(f==="ACTIVE"?C.r:f==="SCHEDULED"?C.y:f==="RESOLVED"?C.g:C.b):C.dim,fontSize:9,fontFamily:ft,cursor:"pointer",fontWeight:filter===f?700:400}}>{f||"All"}</button>)}
+      <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{padding:"4px 8px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:9,fontFamily:ft,outline:"none"}}>
+        <option value="">All Types</option><option>Forced</option><option>Scheduled</option><option>Curtailment</option><option>Derate</option>
+      </select>
+    </div>
+
+    {/* Outages Table */}
+    <div style={{background:C.s,border:"1px solid "+C.brd,borderRadius:6,overflow:"hidden"}}>
+      <div style={{overflowX:"auto"}}>
+        <table style={{borderCollapse:"collapse",width:"100%",minWidth:800}}>
+          <thead><tr>
+            <th style={thS}>Site</th><th style={thS}>Type</th><th style={thS}>Pri</th><th style={thS}>Start</th><th style={thS}>Duration</th><th style={thS}>MW</th><th style={thS}>SC</th><th style={thS}>TOP</th><th style={thS}>Status</th>
+          </tr></thead>
+          <tbody>
+            {filtered.length===0&&<tr><td colSpan={9} style={{...tdS,textAlign:"center",color:C.dim,padding:20}}>No outages found</td></tr>}
+            {filtered.map(o=>{
+              const dur=o.actualEnd?(o.actualEnd-o.start):(now-o.start);
+              const durH=(dur/3600000).toFixed(1);
+              return <tr key={o.id} onClick={()=>setDetail(o)} style={{cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.background=C.bg}} onMouseLeave={e=>{e.currentTarget.style.background="transparent"}}>
+                <td style={tdS}><div style={{fontWeight:600}}>{o.site}</div><div style={{fontSize:8,color:C.b}}>{o.caiso}</div></td>
+                <td style={tdS}>{o.type}</td>
+                <td style={{...tdS,color:o.priority<=2?C.r:C.y,fontWeight:700}}>P{o.priority}</td>
+                <td style={{...tdS,fontSize:9}}>{new Date(o.start).toLocaleString()}</td>
+                <td style={tdS}>{durH}h</td>
+                <td style={tdS}>{o.mw||"-"}</td>
+                <td style={tdS}>{o.notifications?.sc?<span style={{color:C.g}}>Y</span>:<span style={{color:C.r}}>N</span>}</td>
+                <td style={tdS}>{o.notifications?.top?<span style={{color:C.g}}>Y</span>:<span style={{color:C.r}}>N</span>}</td>
+                <td style={tdS}><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:o.status==="ACTIVE"?C.r+"33":o.status==="SCHEDULED"?C.y+"33":C.g+"33",color:o.status==="ACTIVE"?C.r:o.status==="SCHEDULED"?C.y:C.g,fontWeight:700}}>{o.status}</span></td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {showForm&&<EntryForm/>}
+    {detail&&<DetailView outage={detail}/>}
+  </div>;
+}
+
 // Sparkline SVG chart
 function Spark({vals,labels,w:width,h:height,min:forceMin,max:forceMax,thresholds,showArea,showDots}){
   const W=width||200,H=height||50,pad=4;
@@ -943,6 +1255,19 @@ function Dashboard({data,dayKey:dkv,user,onSaveNote}){
         return <Box><SH color={C.r}>VAR-002: {oosCount} AVR OUT OF SERVICE</SH>
           {pendCount>0&&<div style={{background:C.y+"18",border:"1px solid "+C.y+"44",borderRadius:4,padding:"6px 10px",marginBottom:6,fontSize:11,color:C.y}}>WARNING: {pendCount} site(s) - TOP NOT YET NOTIFIED</div>}
           {longOos.map(([site,v])=><div key={site} style={{background:C.r+"18",border:"1px solid "+C.r+"44",borderRadius:4,padding:"6px 10px",marginBottom:4,fontSize:11}}><span style={{color:C.r,fontWeight:700}}>{site}</span><span style={{color:C.dim}}> OOS &gt;24h since {new Date(v.changedAt).toLocaleString()}</span></div>)}
+        </Box>;
+      })()}
+
+      {/* Active Outages */}
+      {(()=>{
+        const outs=Array.isArray(data.outages)?data.outages.filter(o=>o.status==="ACTIVE"):[];
+        if(outs.length===0)return null;
+        const top3=outs.sort((a,b)=>a.priority-b.priority).slice(0,3);
+        return <Box><SH color={C.r}>{outs.length} ACTIVE OUTAGE{outs.length>1?"S":""}</SH>
+          {top3.map((o,i)=><div key={i} style={{background:C.r+"12",border:"1px solid "+C.r+"33",borderRadius:4,padding:"6px 10px",marginBottom:4,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><div style={{fontSize:11,fontWeight:600,color:C.r}}>{o.site}</div><div style={{fontSize:9,color:C.dim}}>{o.type} | P{o.priority} | {o.cause||"Unknown"}</div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:11,fontWeight:700,color:C.white}}>{o.mw?o.mw+" MW":""}</div><div style={{fontSize:8,color:C.dim}}>{((Date.now()-o.start)/3600000).toFixed(1)}h</div></div>
+          </div>)}
         </Box>;
       })()}
 
@@ -1717,6 +2042,7 @@ function App(){
             {syncStatus==="error"&&<><div style={{width:6,height:6,borderRadius:"50%",background:C.r}}/><span style={{fontSize:9,color:C.r}}>Sync Error - Click to retry</span></>}
             {syncStatus==="offline"&&<><div style={{width:6,height:6,borderRadius:"50%",background:C.o}}/><span style={{fontSize:9,color:C.o}}>Local Only</span></>}
           </div>
+          {(()=>{const ac=Array.isArray(data.outages)?data.outages.filter(o=>o.status==="ACTIVE").length:0;return ac>0?<span style={{padding:"2px 8px",borderRadius:10,background:C.r+"33",color:C.r,fontSize:9,fontWeight:700,marginLeft:6}}>{ac} Outage{ac>1?"s":""}</span>:null})()}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <button onClick={()=>setWeekOff(w=>w-1)} style={{padding:"3px 7px",background:C.bg,border:"1px solid "+C.brd,borderRadius:3,color:C.txt,fontSize:11,fontFamily:ft,cursor:"pointer"}}>{"\u2190"}</button>
@@ -1751,6 +2077,9 @@ function App(){
           <button onClick={()=>setSecIdx(-2)} style={{padding:"5px 12px",background:secIdx===-2?C.y+"22":"transparent",border:"1px solid "+(secIdx===-2?C.y:C.brd),borderRadius:4,color:secIdx===-2?C.y:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-2?700:400}}>Turnover</button>
           <button onClick={()=>setSecIdx(-3)} style={{padding:"5px 12px",background:secIdx===-3?C.o+"22":"transparent",border:"1px solid "+(secIdx===-3?C.o:C.brd),borderRadius:4,color:secIdx===-3?C.o:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-3?700:400}}>Site Reference</button>
           <button onClick={()=>setSecIdx(-4)} style={{padding:"5px 12px",background:secIdx===-4?C.r+"22":"transparent",border:"1px solid "+(secIdx===-4?C.r:C.brd),borderRadius:4,color:secIdx===-4?C.r:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-4?700:400}}>AVR / VAR-002</button>
+          <button onClick={()=>setSecIdx(-5)} style={{padding:"5px 12px",background:secIdx===-5?C.r+"22":"transparent",border:"1px solid "+(secIdx===-5?C.r:C.brd),borderRadius:4,color:secIdx===-5?C.r:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-5?700:400}}>
+            Outages{(()=>{const a=Array.isArray(data.outages)?data.outages.filter(o=>o.status==="ACTIVE"):[];return a.length>0?<span style={{marginLeft:4,padding:"1px 5px",borderRadius:8,background:C.r,color:"#fff",fontSize:8}}>{a.length}</span>:null})()}
+          </button>
           {SECTIONS.map((s,i)=><button key={s.id} onClick={()=>setSecIdx(i)} style={{padding:"5px 10px",background:i===secIdx?s.color+"22":"transparent",border:"1px solid "+(i===secIdx?s.color:C.brd),borderRadius:4,color:i===secIdx?s.color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:i===secIdx?700:400,whiteSpace:"nowrap"}}>{s.label}</button>)}
         </div>
 
@@ -1766,6 +2095,8 @@ function App(){
               const cur=dataRef.current;
               persist({...cur,...updates});
             }}/>
+          : secIdx===-5
+          ? <OutageTracker data={data} user={user} onSave={(updates)=>{const cur=dataRef.current;persist({...cur,...updates});}}/>
           : <div>
               <div style={{fontSize:12,fontWeight:700,color:C.white,marginBottom:6}}>
                 {DAYS[selDay]} {fS(selDate)} - {sec.label} <span style={{fontSize:10,fontWeight:400,color:C.dim}}>({sec.desc})</span>

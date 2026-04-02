@@ -2104,17 +2104,26 @@ function App(){
           })}
         </div>
 
-        {/* SECTION TABS */}
-        <div style={{display:"flex",gap:2,marginBottom:10,flexWrap:"wrap"}}>
-          <button onClick={()=>setSecIdx(-1)} style={{padding:"5px 12px",background:secIdx===-1?C.g+"22":"transparent",border:"1px solid "+(secIdx===-1?C.g:C.brd),borderRadius:4,color:secIdx===-1?C.g:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-1?700:400}}>Dashboard</button>
-          <button onClick={()=>setSecIdx(-2)} style={{padding:"5px 12px",background:secIdx===-2?C.y+"22":"transparent",border:"1px solid "+(secIdx===-2?C.y:C.brd),borderRadius:4,color:secIdx===-2?C.y:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-2?700:400}}>Turnover</button>
-          <button onClick={()=>setSecIdx(-3)} style={{padding:"5px 12px",background:secIdx===-3?C.o+"22":"transparent",border:"1px solid "+(secIdx===-3?C.o:C.brd),borderRadius:4,color:secIdx===-3?C.o:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-3?700:400}}>Site Reference</button>
-          <button onClick={()=>setSecIdx(-4)} style={{padding:"5px 12px",background:secIdx===-4?C.r+"22":"transparent",border:"1px solid "+(secIdx===-4?C.r:C.brd),borderRadius:4,color:secIdx===-4?C.r:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-4?700:400}}>AVR / VAR-002</button>
-          <button onClick={()=>setSecIdx(-5)} style={{padding:"5px 12px",background:secIdx===-5?C.r+"22":"transparent",border:"1px solid "+(secIdx===-5?C.r:C.brd),borderRadius:4,color:secIdx===-5?C.r:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===-5?700:400}}>
-            Outages{(()=>{const a=Array.isArray(data.outages)?data.outages.filter(o=>o.status==="ACTIVE"):[];return a.length>0?<span style={{marginLeft:4,padding:"1px 5px",borderRadius:8,background:C.r,color:"#fff",fontSize:8}}>{a.length}</span>:null})()}
-          </button>
-          {SECTIONS.map((s,i)=><button key={s.id} onClick={()=>setSecIdx(i)} style={{padding:"5px 10px",background:i===secIdx?s.color+"22":"transparent",border:"1px solid "+(i===secIdx?s.color:C.brd),borderRadius:4,color:i===secIdx?s.color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:i===secIdx?700:400,whiteSpace:"nowrap"}}>{s.label}</button>)}
-        </div>
+        {/* SECTION TABS - Grouped */}
+        {(()=>{
+          const tb=(idx,label,color,badge)=><button key={idx} onClick={()=>setSecIdx(idx)} style={{padding:"5px 12px",background:secIdx===idx?color+"22":"transparent",border:"1px solid "+(secIdx===idx?color:C.brd),borderRadius:4,color:secIdx===idx?color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",fontWeight:secIdx===idx?700:400,whiteSpace:"nowrap"}}>{label}{badge||null}</button>;
+          const sep=<div style={{width:1,background:C.brd,margin:"2px 4px"}}/>;
+          const activeOut=Array.isArray(data.outages)?data.outages.filter(o=>o.status==="ACTIVE").length:0;
+          return <div style={{display:"flex",gap:2,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+            {tb(-1,"Dashboard",C.g)}
+            {tb(-2,"Turnover",C.y)}
+            {sep}
+            {tb(-10,"BESS",C.g)}
+            {tb(-11,"CA Solar",C.o)}
+            {tb(-12,"Other Sites",C.p)}
+            {tb(-13,"Substations",C.dim)}
+            {sep}
+            {tb(-5,"Outages",C.b,activeOut>0?<span style={{marginLeft:4,padding:"1px 5px",borderRadius:8,background:C.r,color:"#fff",fontSize:8}}>{activeOut}</span>:null)}
+            {tb(-4,"AVR / VAR-002",C.r)}
+            {sep}
+            {tb(-3,"Site Reference",C.o)}
+          </div>;
+        })()}
 
         {/* CONTENT */}
         {secIdx===-1
@@ -2130,6 +2139,35 @@ function App(){
             }}/>
           : secIdx===-5
           ? <OutageTracker data={data} user={user} onSave={(updates)=>{const cur=dataRef.current;persist({...cur,...updates});}}/>
+          : secIdx===-10
+          ? <div>
+              <div style={{fontSize:13,fontWeight:700,color:C.g,marginBottom:10}}>BESS Logs - {DAYS[selDay]} {fS(selDate)}</div>
+              {[0,1,5,4].map(i=>{const s=SECTIONS[i];return <div key={s.id} style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:700,color:s.color,marginBottom:4}}>{s.label} <span style={{fontSize:9,fontWeight:400,color:C.dim}}>({s.desc})</span></div>
+                <FastGrid key={s.id+dkv} sectionKey={s.id} sites={s.sites} slots={s.slots} slotLabels={s.slotLabels} fields={s.fields} data={data} dayKey={dkv} onSave={saveSection} user={user} siteExtra={s.siteExtra}/>
+              </div>})}
+            </div>
+          : secIdx===-11
+          ? <div>
+              <div style={{fontSize:13,fontWeight:700,color:C.o,marginBottom:10}}>CA Solar Logs - {DAYS[selDay]} {fS(selDate)}</div>
+              {[2,3].map(i=>{const s=SECTIONS[i];return <div key={s.id} style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:700,color:s.color,marginBottom:4}}>{s.label} <span style={{fontSize:9,fontWeight:400,color:C.dim}}>({s.desc})</span></div>
+                <FastGrid key={s.id+dkv} sectionKey={s.id} sites={s.sites} slots={s.slots} slotLabels={s.slotLabels} fields={s.fields} data={data} dayKey={dkv} onSave={saveSection} user={user} siteExtra={s.siteExtra}/>
+              </div>})}
+            </div>
+          : secIdx===-12
+          ? <div>
+              <div style={{fontSize:13,fontWeight:700,color:C.p,marginBottom:10}}>Other Site Logs - {DAYS[selDay]} {fS(selDate)}</div>
+              {[6,7,8].map(i=>{const s=SECTIONS[i];return <div key={s.id} style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:700,color:s.color,marginBottom:4}}>{s.label} <span style={{fontSize:9,fontWeight:400,color:C.dim}}>({s.desc})</span></div>
+                <FastGrid key={s.id+dkv} sectionKey={s.id} sites={s.sites} slots={s.slots} slotLabels={s.slotLabels} fields={s.fields} data={data} dayKey={dkv} onSave={saveSection} user={user} siteExtra={s.siteExtra}/>
+              </div>})}
+            </div>
+          : secIdx===-13
+          ? <div>
+              <div style={{fontSize:13,fontWeight:700,color:C.dim,marginBottom:10}}>Substation Breaker Checks - {DAYS[selDay]} {fS(selDate)}</div>
+              {(()=>{const s=SECTIONS[9];return <FastGrid key={s.id+dkv} sectionKey={s.id} sites={s.sites} slots={s.slots} slotLabels={s.slotLabels} fields={s.fields} data={data} dayKey={dkv} onSave={saveSection} user={user} siteExtra={s.siteExtra}/>})()}
+            </div>
           : <div>
               <div style={{fontSize:12,fontWeight:700,color:C.white,marginBottom:6}}>
                 {DAYS[selDay]} {fS(selDate)} - {sec.label} <span style={{fontSize:10,fontWeight:400,color:C.dim}}>({sec.desc})</span>

@@ -172,6 +172,46 @@ const MA_SITES=[
   {id:"rearsomers",n:"Rear Somers"},{id:"sgrafton",n:"South Grafton"},{id:"smain",n:"South Main"},
   {id:"tetreault",n:"Tetreault"},{id:"whayden",n:"West Haydenville PJ"}
 ];
+const AVAIL_MATRIX_SITES=[
+  {site:"ABSR",pvCap:68000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Antelope DSR 1",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Antelope DSR 2",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Antelope DSR 3",pvCap:23000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Antelope Exp 1B",pvCap:30000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Antelope Exp 2",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Antelope Exp 3A",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Antelope Exp 3B",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Baldy Mesa PV",pvCap:150000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Baldy Mesa BESS",pvCap:0,essCap:75000,pvInvKw:0,essInvKw:3800},
+  {site:"Bayshore A",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Bayshore B",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Bayshore C",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Bellefield 1 PV",pvCap:200000,essCap:0,pvInvKw:4200,essInvKw:0},
+  {site:"Bellefield 1 BESS",pvCap:0,essCap:200000,pvInvKw:0,essInvKw:1920},
+  {site:"DSR-1",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"DSR-2",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"DSR-3",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Elevation C",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Estrella PV",pvCap:60000,essCap:0,pvInvKw:4200,essInvKw:0},
+  {site:"Estrella BESS",pvCap:0,essCap:28000,pvInvKw:0,essInvKw:2900},
+  {site:"LAB",pvCap:0,essCap:127000,pvInvKw:0,essInvKw:1175},
+  {site:"Luna",pvCap:0,essCap:100000,pvInvKw:0,essInvKw:1100},
+  {site:"MCF A PV",pvCap:100000,essCap:0,pvInvKw:4200,essInvKw:0},
+  {site:"MCF A BESS",pvCap:0,essCap:100000,pvInvKw:0,essInvKw:2900},
+  {site:"MCF B Hybrid",pvCap:300000,essCap:150000,pvInvKw:4200,essInvKw:2900},
+  {site:"MCF C BESS",pvCap:0,essCap:185000,pvInvKw:0,essInvKw:2900},
+  {site:"Raceway PV",pvCap:80000,essCap:0,pvInvKw:4200,essInvKw:0},
+  {site:"Raceway BESS",pvCap:0,essCap:80000,pvInvKw:0,essInvKw:2900},
+  {site:"Rexford PV",pvCap:100000,essCap:0,pvInvKw:3200,essInvKw:0},
+  {site:"Rexford BESS",pvCap:0,essCap:50000,pvInvKw:0,essInvKw:2500},
+  {site:"San Pablo Raceway",pvCap:100000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Silver Peak",pvCap:0,essCap:25000,pvInvKw:0,essInvKw:3125},
+  {site:"Solverde 1",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Summer Solar",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"WABSR-B",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
+  {site:"Westwing 1",pvCap:0,essCap:80000,pvInvKw:0,essInvKw:2900},
+  {site:"Westwing 2",pvCap:0,essCap:120000,pvInvKw:0,essInvKw:2900}
+];
 const RANDO_SLOTS=["1000","1500"];
 const RANDO_LBL=["10:00","15:00"];
 
@@ -747,6 +787,141 @@ function OutageCharts({data}){
       <div style={{background:C.s,border:"1px solid "+C.r+"44",borderRadius:6,padding:16}}>
         <div style={{fontSize:10,color:C.r,textTransform:"uppercase",letterSpacing:2,marginBottom:10,fontWeight:700}}>All Active Outages ({active.length})</div>
         <BarChart items={currentActive} color={item=>item.hrs>24?C.r:item.hrs>4?C.y:C.g} label="active outages"/>
+      </div>
+    </div>
+  </div>;
+}
+
+function AvailabilityMatrix({data,user,onSave}){
+  const saved=data.avail_matrix||{};
+  const [offlines,setOfflines]=useState(()=>{
+    const init={};
+    AVAIL_MATRIX_SITES.forEach(s=>{init[s.site]={pvOff:saved[s.site]?.pvOff||0,essOff:saved[s.site]?.essOff||0}});
+    // Seed data
+    if(!saved||!Object.keys(saved).length){
+      init["Baldy Mesa BESS"]={pvOff:0,essOff:15};
+      init["MCF B Hybrid"]={pvOff:0,essOff:12};
+      init["MCF C BESS"]={pvOff:0,essOff:11};
+      init["Rexford PV"]={pvOff:31,essOff:0};
+      init["Raceway BESS"]={pvOff:0,essOff:21};
+      init["Silver Peak"]={pvOff:0,essOff:8};
+      init["Westwing 1"]={pvOff:0,essOff:8};
+      init["Westwing 2"]={pvOff:0,essOff:30};
+      init["Baldy Mesa PV"]={pvOff:0,essOff:9};
+      init["Bellefield 1 BESS"]={pvOff:0,essOff:104};
+    }
+    return init;
+  });
+  const [filter,setFilter]=useState("");
+  const [showAll,setShowAll]=useState(false);
+
+  const setOff=(site,field,val)=>{
+    const v=parseInt(val)||0;
+    setOfflines(prev=>({...prev,[site]:{...prev[site],[field]:v}}));
+  };
+
+  const saveMatrix=()=>{
+    onSave({avail_matrix:offlines});
+  };
+
+  const rows=AVAIL_MATRIX_SITES.map(s=>{
+    const off=offlines[s.site]||{pvOff:0,essOff:0};
+    const pvDerate=s.pvInvKw>0?(off.pvOff*s.pvInvKw/1000):0;
+    const essDerate=s.essInvKw>0?(off.essOff*s.essInvKw/1000):0;
+    const pvAvail=Math.max(s.pvCap/1000-pvDerate,0);
+    const essAvail=Math.max(s.essCap/1000-essDerate,0);
+    const pvPct=s.pvCap>0?Math.round(pvAvail/(s.pvCap/1000)*100):null;
+    const essPct=s.essCap>0?Math.round(essAvail/(s.essCap/1000)*100):null;
+    const hasDerate=off.pvOff>0||off.essOff>0;
+    return{...s,off,pvDerate,essDerate,pvAvail,essAvail,pvPct,essPct,hasDerate};
+  });
+
+  const totalPvCap=rows.reduce((a,r)=>a+r.pvCap/1000,0);
+  const totalEssCap=rows.reduce((a,r)=>a+r.essCap/1000,0);
+  const totalPvAvail=rows.reduce((a,r)=>a+r.pvAvail,0);
+  const totalEssAvail=rows.reduce((a,r)=>a+r.essAvail,0);
+  const totalPvDerate=rows.reduce((a,r)=>a+r.pvDerate,0);
+  const totalEssDerate=rows.reduce((a,r)=>a+r.essDerate,0);
+  const deratedCount=rows.filter(r=>r.hasDerate).length;
+
+  const filtered=rows.filter(r=>{
+    if(!showAll&&!r.hasDerate)return false;
+    if(filter&&!r.site.toLowerCase().includes(filter.toLowerCase()))return false;
+    return true;
+  });
+
+  const thS={padding:"6px 6px",textAlign:"center",fontSize:8,color:C.dim,letterSpacing:1,borderBottom:"1px solid "+C.brd,textTransform:"uppercase",whiteSpace:"nowrap"};
+  const tdS={padding:"5px 6px",fontSize:10,borderBottom:"1px solid "+C.brd,textAlign:"center"};
+
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.white}}>Inverter Availability Matrix</div>
+      <button onClick={saveMatrix} style={{padding:"6px 16px",background:C.g,color:C.bg,border:"none",borderRadius:4,fontSize:10,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>Save</button>
+    </div>
+
+    {/* Summary */}
+    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      <div style={{padding:"6px 14px",background:C.g+"18",border:"1px solid "+C.g+"44",borderRadius:5,fontSize:11,fontWeight:700,color:C.g}}>PV: {totalPvAvail.toFixed(0)} / {totalPvCap.toFixed(0)} MW</div>
+      <div style={{padding:"6px 14px",background:C.b+"18",border:"1px solid "+C.b+"44",borderRadius:5,fontSize:11,fontWeight:700,color:C.b}}>ESS: {totalEssAvail.toFixed(0)} / {totalEssCap.toFixed(0)} MW</div>
+      {totalPvDerate>0&&<div style={{padding:"6px 14px",background:C.r+"18",border:"1px solid "+C.r+"44",borderRadius:5,fontSize:11,fontWeight:700,color:C.r}}>PV Derate: -{totalPvDerate.toFixed(1)} MW</div>}
+      {totalEssDerate>0&&<div style={{padding:"6px 14px",background:C.r+"18",border:"1px solid "+C.r+"44",borderRadius:5,fontSize:11,fontWeight:700,color:C.r}}>ESS Derate: -{totalEssDerate.toFixed(1)} MW</div>}
+      <div style={{padding:"6px 14px",background:deratedCount>0?C.y+"18":C.bg,border:"1px solid "+(deratedCount>0?C.y+"44":C.brd),borderRadius:5,fontSize:11,fontWeight:700,color:deratedCount>0?C.y:C.dim}}>{deratedCount} Sites Derated</div>
+    </div>
+
+    {/* Filters */}
+    <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
+      <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filter sites..." style={{padding:"6px 10px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:10,fontFamily:ft,outline:"none",width:180}}/>
+      <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:C.dim,cursor:"pointer"}}>
+        <input type="checkbox" checked={showAll} onChange={e=>setShowAll(e.target.checked)} style={{width:13,height:13}}/>Show all sites
+      </label>
+    </div>
+
+    {/* Table */}
+    <div style={{background:C.s,border:"1px solid "+C.brd,borderRadius:6,overflow:"hidden"}}>
+      <div style={{overflowX:"auto"}}>
+        <table style={{borderCollapse:"collapse",width:"100%",minWidth:900}}>
+          <thead><tr>
+            <th style={{...thS,textAlign:"left",paddingLeft:8}}>Site</th>
+            <th style={thS}>PV Inv Off</th>
+            <th style={thS}>ESS Inv Off</th>
+            <th style={thS}>PV Cap MW</th>
+            <th style={thS}>ESS Cap MW</th>
+            <th style={thS}>PV Derate</th>
+            <th style={thS}>ESS Derate</th>
+            <th style={thS}>PV Avail</th>
+            <th style={thS}>ESS Avail</th>
+            <th style={thS}>PV %</th>
+            <th style={thS}>ESS %</th>
+          </tr></thead>
+          <tbody>
+            {filtered.length===0&&<tr><td colSpan={11} style={{...tdS,color:C.dim,padding:20}}>No derated sites{!showAll?" (check 'Show all sites')":""}</td></tr>}
+            {filtered.map(r=><tr key={r.site} style={{background:r.hasDerate?C.r+"08":"transparent"}}>
+              <td style={{...tdS,textAlign:"left",paddingLeft:8,fontWeight:600,color:r.hasDerate?C.y:C.white}}>{r.site}</td>
+              <td style={tdS}>{r.pvInvKw>0?<input type="number" min="0" value={r.off.pvOff||""} onChange={e=>setOff(r.site,"pvOff",e.target.value)} style={{width:40,padding:"2px 4px",background:C.inputBg,border:"1px solid "+(r.off.pvOff>0?C.r:C.brd),borderRadius:3,color:r.off.pvOff>0?C.r:C.white,fontSize:10,fontFamily:ft,textAlign:"center",outline:"none"}} placeholder="0"/>:<span style={{color:C.dim}}>-</span>}</td>
+              <td style={tdS}>{r.essInvKw>0?<input type="number" min="0" value={r.off.essOff||""} onChange={e=>setOff(r.site,"essOff",e.target.value)} style={{width:40,padding:"2px 4px",background:C.inputBg,border:"1px solid "+(r.off.essOff>0?C.r:C.brd),borderRadius:3,color:r.off.essOff>0?C.r:C.white,fontSize:10,fontFamily:ft,textAlign:"center",outline:"none"}} placeholder="0"/>:<span style={{color:C.dim}}>-</span>}</td>
+              <td style={{...tdS,color:C.dim}}>{r.pvCap>0?(r.pvCap/1000).toFixed(0):"-"}</td>
+              <td style={{...tdS,color:C.dim}}>{r.essCap>0?(r.essCap/1000).toFixed(0):"-"}</td>
+              <td style={{...tdS,color:r.pvDerate>0?C.r:C.dim}}>{r.pvDerate>0?"-"+r.pvDerate.toFixed(1):"-"}</td>
+              <td style={{...tdS,color:r.essDerate>0?C.r:C.dim}}>{r.essDerate>0?"-"+r.essDerate.toFixed(1):"-"}</td>
+              <td style={{...tdS,color:r.pvCap>0?C.g:C.dim,fontWeight:r.pvCap>0?600:400}}>{r.pvCap>0?r.pvAvail.toFixed(1):"-"}</td>
+              <td style={{...tdS,color:r.essCap>0?C.g:C.dim,fontWeight:r.essCap>0?600:400}}>{r.essCap>0?r.essAvail.toFixed(1):"-"}</td>
+              <td style={{...tdS,color:r.pvPct!==null?(r.pvPct<80?C.r:r.pvPct<95?C.y:C.g):C.dim,fontWeight:r.pvPct!==null?600:400}}>{r.pvPct!==null?r.pvPct+"%":"-"}</td>
+              <td style={{...tdS,color:r.essPct!==null?(r.essPct<80?C.r:r.essPct<95?C.y:C.g):C.dim,fontWeight:r.essPct!==null?600:400}}>{r.essPct!==null?r.essPct+"%":"-"}</td>
+            </tr>)}
+          </tbody>
+          {filtered.length>0&&<tfoot><tr style={{background:C.bg}}>
+            <td style={{...tdS,textAlign:"left",paddingLeft:8,fontWeight:700,color:C.white}}>TOTAL</td>
+            <td style={tdS}></td><td style={tdS}></td>
+            <td style={{...tdS,fontWeight:600,color:C.dim}}>{totalPvCap.toFixed(0)}</td>
+            <td style={{...tdS,fontWeight:600,color:C.dim}}>{totalEssCap.toFixed(0)}</td>
+            <td style={{...tdS,fontWeight:600,color:totalPvDerate>0?C.r:C.dim}}>{totalPvDerate>0?"-"+totalPvDerate.toFixed(1):"-"}</td>
+            <td style={{...tdS,fontWeight:600,color:totalEssDerate>0?C.r:C.dim}}>{totalEssDerate>0?"-"+totalEssDerate.toFixed(1):"-"}</td>
+            <td style={{...tdS,fontWeight:700,color:C.g}}>{totalPvAvail.toFixed(0)}</td>
+            <td style={{...tdS,fontWeight:700,color:C.g}}>{totalEssAvail.toFixed(0)}</td>
+            <td style={{...tdS,fontWeight:600,color:C.g}}>{totalPvCap>0?Math.round(totalPvAvail/totalPvCap*1000*100)/100+"%":"-"}</td>
+            <td style={{...tdS,fontWeight:600,color:C.g}}>{totalEssCap>0?Math.round(totalEssAvail/totalEssCap*1000*100)/100+"%":"-"}</td>
+          </tr></tfoot>}
+        </table>
       </div>
     </div>
   </div>;
@@ -2232,6 +2407,7 @@ function App(){
             {tb(-5,"Outage Log",C.b,activeOut>0?<span style={{marginLeft:4,padding:"1px 5px",borderRadius:8,background:C.r,color:"#fff",fontSize:8}}>{activeOut}</span>:null)}
             {tb(-4,"Compliance",C.r)}
             {sep}
+            {tb(-7,"Availability",C.p)}
             {tb(-3,"Site Reference",C.o)}
           </div>;
         })()}
@@ -2241,6 +2417,8 @@ function App(){
           ? <Dashboard data={data} dayKey={dkv} user={user} onSaveNote={(note)=>saveNote(dkv,note)} onRemoveShift={(idx)=>{const cur=dataRef.current;const dd=cur[dkv]||{};const shifts=[...(dd.shifts||[])];shifts.splice(idx,1);persist({...cur,[dkv]:{...dd,shifts}})}}/>
           : secIdx===-2
           ? <Turnover data={data} dayKey={dkv} user={user} onSave={(key,val)=>{const cur=dataRef.current;persist({...cur,[key]:val});}}/>
+          : secIdx===-7
+          ? <AvailabilityMatrix data={data} user={user} onSave={(updates)=>{const cur=dataRef.current;persist({...cur,...updates});}}/>
           : secIdx===-3
           ? <SiteReference/>
           : secIdx===-4

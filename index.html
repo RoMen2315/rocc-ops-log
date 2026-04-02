@@ -378,7 +378,8 @@ function VAR002({data,user,onSave}){
   const [filter,setFilter]=useState("");
   const [logFilter,setLogFilter]=useState("");
   const status=data.var002_status||{};
-  const log=data.var002_log||[];
+  const rawLog=data.var002_log;
+  const log=Array.isArray(rawLog)?rawLog:[];
 
   const inSvc=NERC_SITES.filter(s=>(status[s]?.status||"IN SERVICE")==="IN SERVICE").length;
   const outSvc=NERC_SITES.length-inSvc;

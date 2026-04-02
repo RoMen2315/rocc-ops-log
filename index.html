@@ -1117,7 +1117,7 @@ function ShiftNotes({notes,user,onSaveNote}){
 // ================================================================
 // DASHBOARD
 // ================================================================
-function Dashboard({data,dayKey:dkv,user,onSaveNote}){
+function Dashboard({data,dayKey:dkv,user,onSaveNote,onRemoveShift}){
   const dd=data[dkv]||{};
   const avail=dd.bess_avail||{};
   const subs=dd.subs||{};
@@ -1230,7 +1230,10 @@ function Dashboard({data,dayKey:dkv,user,onSaveNote}){
         {shifts.length>0?<div style={{display:"flex",flexDirection:"column",gap:6}}>{shifts.map((s,i)=>
           <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",background:C.bg,borderRadius:4,border:"1px solid "+(s.name===user.name?C.g+"66":C.brd)}}>
             <div><div style={{fontSize:12,fontWeight:600,color:s.name===user.name?C.g:C.white}}>{s.name}</div><div style={{fontSize:9,color:C.dim}}>{s.role}</div></div>
-            <div style={{textAlign:"right"}}><div style={{fontSize:11,color:s.shift==="Day"?C.y:C.b,fontWeight:600}}>{s.shift}</div><div style={{fontSize:9,color:C.dim}}>{fT(s.loginTime)}</div></div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{textAlign:"right"}}><div style={{fontSize:11,color:s.shift==="Day"?C.y:C.b,fontWeight:600}}>{s.shift}</div><div style={{fontSize:9,color:C.dim}}>{fT(s.loginTime)}</div></div>
+              <button onClick={()=>onRemoveShift&&onRemoveShift(i)} style={{background:"none",border:"none",color:C.dim,fontSize:12,cursor:"pointer",padding:"0 2px",lineHeight:1}} title="Remove from list">x</button>
+            </div>
           </div>)}</div>
         :<div style={{fontSize:11,color:C.dim}}>No operators yet</div>}
         <div style={{marginTop:8,fontSize:9,color:C.dim,borderTop:"1px solid "+C.brd,paddingTop:6}}>Current: <span style={{color:h>=6&&h<18?C.y:C.b,fontWeight:600}}>{h>=6&&h<18?"Day":"Night"} Shift</span></div>
@@ -2215,7 +2218,7 @@ function App(){
 
         {/* CONTENT */}
         {secIdx===-1
-          ? <Dashboard data={data} dayKey={dkv} user={user} onSaveNote={(note)=>saveNote(dkv,note)}/>
+          ? <Dashboard data={data} dayKey={dkv} user={user} onSaveNote={(note)=>saveNote(dkv,note)} onRemoveShift={(idx)=>{const cur=dataRef.current;const dd=cur[dkv]||{};const shifts=[...(dd.shifts||[])];shifts.splice(idx,1);persist({...cur,[dkv]:{...dd,shifts}})}}/>
           : secIdx===-2
           ? <Turnover data={data} dayKey={dkv} user={user} onSave={(key,val)=>{const cur=dataRef.current;persist({...cur,[key]:val});}}/>
           : secIdx===-3

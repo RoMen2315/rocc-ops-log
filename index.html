@@ -181,8 +181,7 @@ const AVAIL_MATRIX_SITES=[
   {site:"Antelope Exp 2",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
   {site:"Antelope Exp 3A",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
   {site:"Antelope Exp 3B",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
-  {site:"Baldy Mesa PV",pvCap:150000,essCap:0,pvInvKw:4000,essInvKw:0},
-  {site:"Baldy Mesa BESS",pvCap:0,essCap:75000,pvInvKw:0,essInvKw:3800},
+  {site:"Baldy Mesa Hybrid",pvCap:150000,essCap:75000,pvInvKw:4000,essInvKw:3800},
   {site:"Bayshore A",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
   {site:"Bayshore B",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
   {site:"Bayshore C",pvCap:20000,essCap:0,pvInvKw:4000,essInvKw:0},
@@ -799,7 +798,7 @@ function AvailabilityMatrix({data,user,onSave}){
     AVAIL_MATRIX_SITES.forEach(s=>{init[s.site]={pvOff:saved[s.site]?.pvOff||0,essOff:saved[s.site]?.essOff||0}});
     // Seed data
     if(!saved||!Object.keys(saved).length){
-      init["Baldy Mesa BESS"]={pvOff:0,essOff:15};
+      init["Baldy Mesa Hybrid"]={pvOff:0,essOff:15};
       init["MCF B Hybrid"]={pvOff:0,essOff:12};
       init["MCF C BESS"]={pvOff:0,essOff:11};
       init["Rexford PV"]={pvOff:31,essOff:0};

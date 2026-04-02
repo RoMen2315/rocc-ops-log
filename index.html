@@ -152,6 +152,7 @@ const RANDO_AZ=[{id:"cls",n:"Central Line Solar"},{id:"el",n:"East Line"},{id:"w
 const RANDO_MCF=[{id:"mcfapv",n:"McFarland A PV"},{id:"mcfbpv",n:"McFarland B PV"}];
 const RANDO_RR=[{id:"rrmw",n:"Road Runner MW"},{id:"rrmvar",n:"RR Reactive Power"},{id:"rrkv",n:"RR PQM-2 Line kV"},{id:"rrturb",n:"# Avail Turbines"},{id:"rronl",n:"# Turbines Online"},{id:"rrcurt",n:"Basin Curtailment"},{id:"rravr",n:"AVR Status"}];
 const RANDO_KAUAI=[{id:"law_inv",n:"Lawai # Inv"},{id:"law_soc",n:"Lawai SOC%"},{id:"law_tgt",n:"Lawai Tgt"},{id:"kek_inv",n:"Kekaha # Inv"},{id:"kek_soc",n:"Kekaha SOC%"},{id:"kek_tgt",n:"Kekaha Tgt"}];
+const CO_SITES=[{id:"hmesa",n:"High Mesa"},{id:"mcreek",n:"Mamm Creek"}];
 const RANDO_SLOTS=["1000","1500"];
 const RANDO_LBL=["10:00","15:00"];
 
@@ -182,6 +183,8 @@ const SECTIONS=[
     fields:[{id:"mvar",label:"MVAR",color:C.y,w:42},{id:"ads",label:"ADS",color:C.b,w:38}]},
   {id:"rando_misc",label:"RR/Kauai",color:C.r,desc:"Misc",sites:[...RANDO_RR,...RANDO_KAUAI],slots:RANDO_SLOTS,slotLabels:RANDO_LBL,
     fields:[{id:"val",label:"Value",w:50}]},
+  {id:"co_sites",label:"CO Sites",color:C.p,desc:"High Mesa + Mamm Creek",sites:CO_SITES,slots:RANDO_SLOTS,slotLabels:RANDO_LBL,
+    fields:[{id:"inv",label:"#Inv Online",color:C.g,type:"number",step:"1",w:48},{id:"soc",label:"SOC%",color:C.y,type:"number",step:"0.1",w:42},{id:"mvar",label:"MVAR",color:C.b,w:42},{id:"output",label:"Output MW",color:C.o,type:"number",step:"0.1",w:50}]},
   {id:"subs",label:"Substations",color:C.dim,desc:"Breaker Checks",sites:SUB_SITES,slots:SUB_SLOTS,slotLabels:SUB_LBL,
     fields:[{id:"sat",label:"SAT",color:C.g,w:34},{id:"notes",label:"Notes",w:80}]},
 ];
@@ -2158,7 +2161,7 @@ function App(){
           : secIdx===-12
           ? <div>
               <div style={{fontSize:13,fontWeight:700,color:C.p,marginBottom:10}}>Other Site Logs - {DAYS[selDay]} {fS(selDate)}</div>
-              {[6,7,8].map(i=>{const s=SECTIONS[i];return <div key={s.id} style={{marginBottom:20}}>
+              {[6,7,8,9].map(i=>{const s=SECTIONS[i];return <div key={s.id} style={{marginBottom:20}}>
                 <div style={{fontSize:11,fontWeight:700,color:s.color,marginBottom:4}}>{s.label} <span style={{fontSize:9,fontWeight:400,color:C.dim}}>({s.desc})</span></div>
                 <FastGrid key={s.id+dkv} sectionKey={s.id} sites={s.sites} slots={s.slots} slotLabels={s.slotLabels} fields={s.fields} data={data} dayKey={dkv} onSave={saveSection} user={user} siteExtra={s.siteExtra}/>
               </div>})}
@@ -2166,7 +2169,7 @@ function App(){
           : secIdx===-13
           ? <div>
               <div style={{fontSize:13,fontWeight:700,color:C.dim,marginBottom:10}}>Substation Breaker Checks - {DAYS[selDay]} {fS(selDate)}</div>
-              {(()=>{const s=SECTIONS[9];return <FastGrid key={s.id+dkv} sectionKey={s.id} sites={s.sites} slots={s.slots} slotLabels={s.slotLabels} fields={s.fields} data={data} dayKey={dkv} onSave={saveSection} user={user} siteExtra={s.siteExtra}/>})()}
+              {(()=>{const s=SECTIONS[10];return <FastGrid key={s.id+dkv} sectionKey={s.id} sites={s.sites} slots={s.slots} slotLabels={s.slotLabels} fields={s.fields} data={data} dayKey={dkv} onSave={saveSection} user={user} siteExtra={s.siteExtra}/>})()}
             </div>
           : <div>
               <div style={{fontSize:12,fontWeight:700,color:C.white,marginBottom:6}}>

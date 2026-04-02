@@ -267,15 +267,19 @@ function slotExpected(slotStr,h,viewingPast){
 // ================================================================
 // LOGIN
 // ================================================================
+const OPERATORS=["RMeza","HCruz","DDuffy","RDale","AHorie","JSmith","MTytell","DColeman","TAllen","CWolfe","CTownsend","ZGrant"];
+
 function Login({onLogin,onToggleTheme,theme}){
-  const [name,setName]=useState("");
+  const [selOp,setSelOp]=useState("");
+  const [guestName,setGuestName]=useState("");
   const [role,setRole]=useState("CRO 2");
   const [shift,setShift]=useState("Night");
-  const go=()=>name.trim()&&onLogin({name:name.trim(),role,shift,loginTime:Date.now()});
+  const name=selOp==="Guest"?guestName.trim():selOp;
+  const go=()=>name&&onLogin({name,role,shift,loginTime:Date.now()});
   const is={width:"100%",padding:"10px 12px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:5,color:C.white,fontSize:14,fontFamily:ft,outline:"none",boxSizing:"border-box"};
   return(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:ft}}>
-      <div style={{width:380,padding:36,background:C.s,border:"1px solid "+C.brd,borderRadius:8}}>
+      <div style={{width:420,padding:36,background:C.s,border:"1px solid "+C.brd,borderRadius:8}}>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:10,letterSpacing:6,color:C.g,textTransform:"uppercase",marginBottom:6}}>AES Clean Energy</div>
           <div style={{fontSize:22,fontWeight:700,color:C.white}}>ROCC Operations Log</div>
@@ -283,8 +287,12 @@ function Login({onLogin,onToggleTheme,theme}){
           <div style={{fontSize:9,color:C.dim,marginTop:10}}>Developed by Rocky Dev Co.</div>
         </div>
         <div style={{marginBottom:14}}>
-          <div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Operator Name / Initials</div>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" onKeyDown={e=>e.key==="Enter"&&go()} style={is}/>
+          <div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Select Operator</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:8}}>
+            {OPERATORS.map(op=><button key={op} onClick={()=>setSelOp(op)} style={{padding:"8px 4px",background:selOp===op?C.g+"22":C.bg,border:"1px solid "+(selOp===op?C.g:C.brd),borderRadius:5,color:selOp===op?C.g:C.white,fontSize:11,fontFamily:ft,cursor:"pointer",fontWeight:selOp===op?700:400,transition:"all .15s"}}>{op}</button>)}
+            <button onClick={()=>setSelOp("Guest")} style={{padding:"8px 4px",background:selOp==="Guest"?C.o+"22":C.bg,border:"1px solid "+(selOp==="Guest"?C.o:C.brd),borderRadius:5,color:selOp==="Guest"?C.o:C.dim,fontSize:11,fontFamily:ft,cursor:"pointer",fontWeight:selOp==="Guest"?700:400,transition:"all .15s"}}>Guest</button>
+          </div>
+          {selOp==="Guest"&&<input value={guestName} onChange={e=>setGuestName(e.target.value)} placeholder="Enter your name..." onKeyDown={e=>e.key==="Enter"&&go()} style={is} autoFocus/>}
         </div>
         <div style={{display:"flex",gap:10,marginBottom:24}}>
           <div style={{flex:1}}>
@@ -298,9 +306,9 @@ function Login({onLogin,onToggleTheme,theme}){
               <option value="Day">Day (0600-1800)</option><option value="Night">Night (1800-0600)</option>
             </select></div>
         </div>
-        <button onClick={go} disabled={!name.trim()} style={{width:"100%",padding:12,background:name.trim()?C.g:C.brd,color:name.trim()?C.bg:C.dim,border:"none",borderRadius:5,fontSize:12,fontWeight:700,fontFamily:ft,letterSpacing:2,textTransform:"uppercase",cursor:name.trim()?"pointer":"not-allowed"}}>Sign In</button>
+        <button onClick={go} disabled={!name} style={{width:"100%",padding:12,background:name?C.g:C.brd,color:name?C.bg:C.dim,border:"none",borderRadius:5,fontSize:12,fontWeight:700,fontFamily:ft,letterSpacing:2,textTransform:"uppercase",cursor:name?"pointer":"not-allowed"}}>Sign In{name?" as "+name:""}</button>
         {onToggleTheme&&<div style={{textAlign:"center",marginTop:14}}>
-          <button onClick={onToggleTheme} style={{padding:"5px 14px",background:"transparent",border:"1px solid "+C.brd,borderRadius:4,color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer"}}>{theme==="dark"?"\u2600 Light Mode":"🌙 Dark Mode"}</button>
+          <button onClick={onToggleTheme} style={{padding:"5px 14px",background:"transparent",border:"1px solid "+C.brd,borderRadius:4,color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer"}}>{theme==="dark"?"\u2600 Light Mode":"\uD83C\uDF19 Dark Mode"}</button>
         </div>}
       </div>
     </div>

@@ -73,6 +73,113 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // API: save a value via GET (used from GitHub Pages to avoid CORS on POST)
+    // Usage: ?action=save&key=2026-04-02&value={...encoded JSON...}&user=Meza
+    if (action === "save") {
+      var saveKey = e.parameter.key;
+      var saveUser = e.parameter.user || "";
+      var saveValueRaw = e.parameter.value || "";
+
+      if (!saveKey) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ success: false, error: "Missing key" }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var saveSheet = getSheet();
+      var saveData = saveSheet.getDataRange().getValues();
+
+      // Find existing row for this key
+      var saveRowIndex = -1;
+      var saveExistingValue = null;
+      for (var si = 1; si < saveData.length; si++) {
+        if (saveData[si][0] === saveKey) {
+          saveRowIndex = si + 1; // 1-based for sheet
+          saveExistingValue = saveData[si][1];
+          break;
+        }
+      }
+
+      // Deep merge: parse existing and incoming as JSON, merge at section > site > slot level
+      var saveExisting = {};
+      if (saveExistingValue) {
+        try { saveExisting = JSON.parse(saveExistingValue); } catch(ex) { saveExisting = {}; }
+      }
+      var saveIncoming = {};
+      try { saveIncoming = JSON.parse(saveValueRaw); } catch(ex) { saveIncoming = {}; }
+
+      for (var secKey in saveIncoming) {
+        if (!saveExisting[secKey]) { saveExisting[secKey] = {}; }
+        var secData = saveIncoming[secKey];
+        if (secKey === "shifts" || secKey === "notes") {
+          if (secKey === "shifts") {
+            var arr = saveExisting[secKey] || [];
+            if (!Array.isArray(arr)) arr = [];
+            var newArr = secData || [];
+            if (!Array.isArray(newArr)) newArr = [];
+            for (var ss = 0; ss < newArr.length; ss++) {
+              var dup = false;
+              for (var sa = 0; sa < arr.length; sa++) {
+                if (arr[sa].name === newArr[ss].name && arr[sa].shift === newArr[ss].shift) { dup = true; break; }
+              }
+              if (!dup) arr.push(newArr[ss]);
+            }
+            saveExisting[secKey] = arr;
+          } else {
+            // Notes: append any new notes (by timestamp + user)
+            var notes = saveExisting[secKey] || [];
+            if (!Array.isArray(notes)) notes = [];
+            var newNotes = secData || [];
+            if (!Array.isArray(newNotes)) newNotes = [];
+            var tsSet = {};
+            for (var sn = 0; sn < notes.length; sn++) { tsSet[notes[sn].ts + "_" + notes[sn].user] = true; }
+            for (var sn2 = 0; sn2 < newNotes.length; sn2++) {
+              if (!tsSet[newNotes[sn2].ts + "_" + newNotes[sn2].user]) notes.push(newNotes[sn2]);
+            }
+            saveExisting[secKey] = notes;
+          }
+        } else if (typeof secData === "object" && secData !== null && !Array.isArray(secData)) {
+          // Section object: merge site > slot > fields
+          if (typeof saveExisting[secKey] !== "object" || Array.isArray(saveExisting[secKey])) saveExisting[secKey] = {};
+          for (var siteId in secData) {
+            if (!saveExisting[secKey][siteId]) saveExisting[secKey][siteId] = {};
+            var siteData = secData[siteId];
+            if (typeof siteData === "object" && siteData !== null && !Array.isArray(siteData)) {
+              for (var slot in siteData) {
+                if (!saveExisting[secKey][siteId][slot]) saveExisting[secKey][siteId][slot] = {};
+                var slotData = siteData[slot];
+                if (typeof slotData === "object" && slotData !== null && !Array.isArray(slotData)) {
+                  for (var field in slotData) {
+                    saveExisting[secKey][siteId][slot][field] = slotData[field];
+                  }
+                } else {
+                  saveExisting[secKey][siteId][slot] = slotData;
+                }
+              }
+            } else {
+              saveExisting[secKey][siteId] = siteData;
+            }
+          }
+        } else {
+          saveExisting[secKey] = secData;
+        }
+      }
+
+      var saveFinal = JSON.stringify(saveExisting);
+
+      if (saveRowIndex > 0) {
+        saveSheet.getRange(saveRowIndex, 2).setValue(saveFinal);
+        saveSheet.getRange(saveRowIndex, 3).setValue(new Date().toISOString());
+        saveSheet.getRange(saveRowIndex, 4).setValue(saveUser);
+      } else {
+        saveSheet.appendRow([saveKey, saveFinal, new Date().toISOString(), saveUser]);
+      }
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // No action param: serve the app HTML
     return HtmlService.createHtmlOutputFromFile('Index')
       .setTitle('ROCC Operations Log')

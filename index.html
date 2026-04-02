@@ -8,7 +8,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Courier New',Consolas,monospace;background:#0f1923;color:#e2e8f0;transition:background .3s,color .3s}
-body.light{background:#f0f2f5;color:#1a1a2e}
+body.light{background:#e2e6ec;color:#1e293b}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:#162032}
 body.light ::-webkit-scrollbar-track{background:#e5e7eb}
@@ -48,9 +48,9 @@ const THEMES={
   dark:{bg:"#0f1923",s:"#162032",s2:"#1c2940",brd:"#2a3f5a",brd2:"#3a5272",txt:"#e2e8f0",dim:"#94a3b8",
     g:"#22d3a7",gd:"#22d3a718",y:"#f59e0b",r:"#ef4444",b:"#38bdf8",p:"#818cf8",o:"#f97316",
     white:"#f8fafc",inputBg:"#0c1520",headerBg:"#162032"},
-  light:{bg:"#f0f2f5",s:"#ffffff",s2:"#f7f8fa",brd:"#d0d5dd",brd2:"#b8c0cc",txt:"#1a1a2e",dim:"#6b7280",
-    g:"#059669",gd:"#05966818",y:"#d97706",r:"#dc2626",b:"#2563eb",p:"#7c3aed",o:"#ea580c",
-    white:"#1a1a2e",inputBg:"#ffffff",headerBg:"#ffffff"}
+  light:{bg:"#e2e6ec",s:"#eef1f5",s2:"#e8ecf1",brd:"#b8c0cc",brd2:"#a0aab8",txt:"#1e293b",dim:"#475569",
+    g:"#059669",gd:"#05966818",y:"#b45309",r:"#dc2626",b:"#1d4ed8",p:"#6d28d9",o:"#c2410c",
+    white:"#0f172a",inputBg:"#e8ecf1",headerBg:"#eef1f5"}
 };
 let C=THEMES[localStorage.getItem("rocc_theme")||"dark"]||THEMES.dark;
 const ThemeCtx=React.createContext("dark");

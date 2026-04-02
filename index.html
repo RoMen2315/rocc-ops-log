@@ -390,17 +390,51 @@ function SiteReference(){
 
 const NERC_SITES=["ABSR","Altona Wind","Antelope Expansion 1B","Antelope Expansion 2","Antelope Expansion 3A","Antelope Expansion 3B","Bayshore A","Bayshore B","Bayshore C","Beacon 1","Beacon 3","Beacon 4","Bliss Wind","Central Line","Chateaugay Wind","Chevelon Butte Wind","Clinton Wind","Clover Creek","DSR-1","DSR-2","DSR-3","East Line","Elevation C","Ellenburg Wind","Hayworth","Highlander Solar","LAB","Luna","Pioneer","Pleinmont 1","Pleinmont 2","Prevailing Winds","Redcrest","Richmond Spider","San Pablo Raceway","Skipjack","Solverde 1","Summer","WABSR-B","West Line","Wethersfield Wind","Woodmere"];
 
+const COMPLIANCE_SEED={
+  avr_out:[
+    {site:"Estrella BESS (Nerc)",notes:"Site not following reactive target or the Volt VAR droop curve during discharge. Trimark ticket 23034"},
+    {site:"McFarland A PV (NERC)",notes:"AVR Called out due to PV Reactive Power Variance Alarm (Likely tied to BESS at 0MW)"},
+    {site:"McFarland A BESS (NERC)",notes:"AVR called out due to disabling Dynamic Var Support per Trimark request."},
+    {site:"Woodmere (NERC)",notes:"AVR out of service for repower work"},
+    {site:"Rexford PV",notes:"All inverters no comms"},
+    {site:"Rexford BESS",notes:"PPC offline"}
+  ],
+  cap_out:[
+    {site:"San Pablo Raceway (B) (40 MW)",notes:"C91 called out."},
+    {site:"Antelope Expansion 2 (BSN)",notes:"C11 Called out for Antex 2"},
+    {site:"San Pablo Raceway (A) (60MW)",notes:"C91 Called out"},
+    {site:"Baldy Mesa PV",notes:"C1 (20 MVAR) cap bank called out. AVR called out."},
+    {site:"Silver Peak (Baldy Mesa SP)",notes:"C1 (20 MVAR) cap bank called out. AVR called out."},
+    {site:"Westwing 1",notes:"52C1 opened, now all Cap Banks are called out of service, result of 52CS1A being stuck"},
+    {site:"Redcrest",notes:"Capbank failed, see email Redcrest Cap Bank failure"},
+    {site:"Clover Creek",notes:"Cap Bank Called out on 3/31/2026 due to Malfunction. Trimark working on it."}
+  ],
+  derated:[
+    {site:"Bakersfield Industrial PV 1",notes:"Metering issues (related to previous fire), awaiting PG&E."},
+    {site:"Lawai",notes:"Pad 8 Down long term due to Thermal Event"}
+  ]
+};
+
 function VAR002({data,user,onSave}){
   const [modal,setModal]=useState(null);
   const [filter,setFilter]=useState("");
   const [logFilter,setLogFilter]=useState("");
+  const [capInput,setCapInput]=useState({site:"",notes:""});
+  const [derInput,setDerInput]=useState({site:"",notes:""});
   const status=data.var002_status||{};
   const rawLog=data.var002_log;
   const log=Array.isArray(rawLog)?rawLog:[];
+  const compliance=data.compliance||{};
+  const capOut=compliance.cap_out||COMPLIANCE_SEED.cap_out;
+  const derated=compliance.derated||COMPLIANCE_SEED.derated;
 
   const inSvc=NERC_SITES.filter(s=>(status[s]?.status||"IN SERVICE")==="IN SERVICE").length;
   const outSvc=NERC_SITES.length-inSvc;
   const pendingTop=NERC_SITES.filter(s=>(status[s]?.status)==="OUT OF SERVICE"&&!status[s]?.topNotified).length;
+
+  const saveCompliance=(updates)=>{
+    onSave({compliance:{...compliance,...updates}});
+  };
 
   const saveStatus=(site,newStatus,reason,topNotified,topName,notes)=>{
     const now=Date.now();
@@ -470,8 +504,10 @@ function VAR002({data,user,onSave}){
     {/* Summary Bar */}
     <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}>
       <div style={{padding:"8px 14px",background:C.g+"18",border:"1px solid "+C.g+"44",borderRadius:5,fontSize:11,fontWeight:700,color:C.g}}>{inSvc} IN SERVICE</div>
-      <div style={{padding:"8px 14px",background:outSvc>0?C.r+"18":C.bg,border:"1px solid "+(outSvc>0?C.r+"44":C.brd),borderRadius:5,fontSize:11,fontWeight:700,color:outSvc>0?C.r:C.dim}}>{outSvc} OUT OF SERVICE</div>
+      <div style={{padding:"8px 14px",background:outSvc>0?C.r+"18":C.bg,border:"1px solid "+(outSvc>0?C.r+"44":C.brd),borderRadius:5,fontSize:11,fontWeight:700,color:outSvc>0?C.r:C.dim}}>{outSvc} AVR Out</div>
       <div style={{padding:"8px 14px",background:pendingTop>0?C.y+"18":C.bg,border:"1px solid "+(pendingTop>0?C.y+"44":C.brd),borderRadius:5,fontSize:11,fontWeight:700,color:pendingTop>0?C.y:C.dim}}>{pendingTop} TOP NOT NOTIFIED</div>
+      <div style={{padding:"8px 14px",background:capOut.length>0?C.y+"18":C.bg,border:"1px solid "+(capOut.length>0?C.y+"44":C.brd),borderRadius:5,fontSize:11,fontWeight:700,color:capOut.length>0?C.y:C.dim}}>{capOut.length} Cap Banks Out</div>
+      <div style={{padding:"8px 14px",background:derated.length>0?C.o+"18":C.bg,border:"1px solid "+(derated.length>0?C.o+"44":C.brd),borderRadius:5,fontSize:11,fontWeight:700,color:derated.length>0?C.o:C.dim}}>{derated.length} Derated</div>
     </div>
     {/* Filter */}
     <div style={{marginBottom:8}}>
@@ -514,6 +550,64 @@ function VAR002({data,user,onSave}){
               </td>
             </tr>;
           })}</tbody>
+        </table>
+      </div>
+    </div>
+    {/* Cap Bank Status */}
+    <div style={{marginTop:16,marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+        <div style={{fontSize:10,color:C.y,textTransform:"uppercase",letterSpacing:2,fontWeight:700}}>Cap Banks Out of Service ({capOut.length})</div>
+        <button onClick={()=>{if(capInput.site.trim()){const n=[...capOut,{site:capInput.site.trim(),notes:capInput.notes.trim()}];saveCompliance({cap_out:n});setCapInput({site:"",notes:""})}}} style={{padding:"3px 10px",background:C.y,color:C.bg,border:"none",borderRadius:4,fontSize:9,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>+ Add Cap Bank Out</button>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:8}}>
+        <input value={capInput.site} onChange={e=>setCapInput(p=>({...p,site:e.target.value}))} placeholder="Site name..." style={{padding:"5px 8px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:10,fontFamily:ft,outline:"none",width:200}}/>
+        <input value={capInput.notes} onChange={e=>setCapInput(p=>({...p,notes:e.target.value}))} placeholder="Notes..." style={{flex:1,padding:"5px 8px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:10,fontFamily:ft,outline:"none"}}/>
+      </div>
+      <div style={{background:C.s,border:"1px solid "+C.brd,borderRadius:6,overflow:"hidden"}}>
+        <table style={{borderCollapse:"collapse",width:"100%"}}>
+          <thead><tr>
+            <th style={thS2}>Site</th>
+            <th style={thS2}>Notes</th>
+            <th style={thS2}>Action</th>
+          </tr></thead>
+          <tbody>{capOut.map((item,i)=><tr key={i} style={{borderBottom:"1px solid "+C.brd}}>
+            <td style={{padding:"6px 8px",fontSize:11,fontWeight:600,color:C.white,whiteSpace:"nowrap"}}>{item.site}</td>
+            <td style={{padding:"6px 8px",fontSize:10,color:C.dim}}>{item.notes}</td>
+            <td style={{padding:"6px 8px"}}>
+              <button onClick={()=>{const n=capOut.filter((_,j)=>j!==i);saveCompliance({cap_out:n})}} style={{padding:"3px 10px",background:"transparent",border:"1px solid "+C.brd,borderRadius:3,color:C.g,fontSize:9,fontFamily:ft,cursor:"pointer"}}>Restore</button>
+            </td>
+          </tr>)}
+          {capOut.length===0&&<tr><td colSpan={3} style={{padding:12,fontSize:11,color:C.dim,textAlign:"center"}}>No cap banks out of service</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {/* Derate Status */}
+    <div style={{marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+        <div style={{fontSize:10,color:C.o,textTransform:"uppercase",letterSpacing:2,fontWeight:700}}>Sites Derated ({derated.length})</div>
+        <button onClick={()=>{if(derInput.site.trim()){const n=[...derated,{site:derInput.site.trim(),notes:derInput.notes.trim()}];saveCompliance({derated:n});setDerInput({site:"",notes:""})}}} style={{padding:"3px 10px",background:C.o,color:"#fff",border:"none",borderRadius:4,fontSize:9,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>+ Add Derate</button>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:8}}>
+        <input value={derInput.site} onChange={e=>setDerInput(p=>({...p,site:e.target.value}))} placeholder="Site name..." style={{padding:"5px 8px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:10,fontFamily:ft,outline:"none",width:200}}/>
+        <input value={derInput.notes} onChange={e=>setDerInput(p=>({...p,notes:e.target.value}))} placeholder="Notes..." style={{flex:1,padding:"5px 8px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:10,fontFamily:ft,outline:"none"}}/>
+      </div>
+      <div style={{background:C.s,border:"1px solid "+C.brd,borderRadius:6,overflow:"hidden"}}>
+        <table style={{borderCollapse:"collapse",width:"100%"}}>
+          <thead><tr>
+            <th style={thS2}>Site</th>
+            <th style={thS2}>Notes</th>
+            <th style={thS2}>Action</th>
+          </tr></thead>
+          <tbody>{derated.map((item,i)=><tr key={i} style={{borderBottom:"1px solid "+C.brd}}>
+            <td style={{padding:"6px 8px",fontSize:11,fontWeight:600,color:C.white,whiteSpace:"nowrap"}}>{item.site}</td>
+            <td style={{padding:"6px 8px",fontSize:10,color:C.dim}}>{item.notes}</td>
+            <td style={{padding:"6px 8px"}}>
+              <button onClick={()=>{const n=derated.filter((_,j)=>j!==i);saveCompliance({derated:n})}} style={{padding:"3px 10px",background:"transparent",border:"1px solid "+C.brd,borderRadius:3,color:C.g,fontSize:9,fontFamily:ft,cursor:"pointer"}}>Restore</button>
+            </td>
+          </tr>)}
+          {derated.length===0&&<tr><td colSpan={3} style={{padding:12,fontSize:11,color:C.dim,textAlign:"center"}}>No sites derated</td></tr>}
+          </tbody>
         </table>
       </div>
     </div>
@@ -1695,211 +1789,131 @@ function Report({data,dayKey:dkv,user,onClose}){
 // ================================================================
 // SHIFT TURNOVER
 // ================================================================
+const TURNOVER_SEED={
+  date:"2026-04-02",dayCrew:"Rosendo, John, Dylan",nightCrew:"Cameron",
+  newThisShift:[
+    "Redwood Sub - Night one of annual sub maintenance complete. During maintenance SER had some blown fuses that were replaced.",
+    "Rexford BESS - HornStrobe and AersolThermalSwitch alarm. Informed FST (Robert L) by email.",
+    "CAISO - O/I issued for multiple sites to follow DOT due to congestion.",
+    "VMLs - All sites tripped. Sites restored but ongoing comms issues persist.",
+    "Clover Creek - Cap Bank Called Out of Service. Trimark ticket opened.",
+    "Woodmere - AVR called out for duration of repower work.",
+    "Mojave West - Comms loss but site verified online.",
+    "Mamm Creek - BESS offline, will remain offline for several weeks (4/21 est).",
+    "McFarland C BESS - Fire Panel bad signal, PB will remain offline.",
+    "Bayshore B - Inverter 3.1 loss of comms.",
+    "Expressway B - New outage for high temp.",
+    "Manteca Land - 72hr telemetry sent, awaiting confirmation.",
+    "Bakersfield PV - EDAS Outage until 4/3.",
+    "Lemoore - New meter exemption request sent 3/26/26."
+  ],
+  upcomingItems:["LAB - Capacity Testing"],
+  ongoingReminders:[
+    "Big Sky/Polaris - Primary circuits down due to T1 transition, awaiting new mapping.",
+    "Bellefield - No active capacitor banks. Disregard cap bank alarms. Investigation ongoing.",
+    "McFarland A PV - AVR Called Out due to PV Reactive Power Variance issue when BESS at 0MW.",
+    "Westwing 2 - Breaker alarms and indications bad on local. Good on WCH and Vantage.",
+    "WW1/WW2 - If operating real power, operate each site individually.",
+    "McFarland - Loss of voltage alarms likely a mapping issue.",
+    "DSR-3 - SEL-351S Alarms stuck in. Trimark ticket: 18231.",
+    "Rexford - Power wouldn't follow after update. Resolved but monitoring.",
+    "Lemoore - Inv 1 online no comms. Long term issue per Evan, telemetry exemption requested.",
+    "Expressway A&B - Afternoon inverter faulting, suspecting heat related."
+  ],
+  siteAvailability:[
+    {site:"Baldy Mesa",pv:150,bess:75},{site:"Silver Peak",pv:50,bess:25},
+    {site:"LAB",pv:null,bess:127},{site:"Luna",pv:null,bess:100},
+    {site:"Raceway",pv:null,bess:80},{site:"Estrella",pv:null,bess:28},
+    {site:"MCF A",pv:null,bess:100},{site:"MCF B Hybrid",pv:300,bess:150},
+    {site:"MCF C",pv:null,bess:185},{site:"Westwing 1",pv:null,bess:80},
+    {site:"Westwing 2",pv:null,bess:120}
+  ]
+};
+
 function Turnover({data,dayKey:dkv,user,onSave}){
-  const dd=data[dkv]||{};
-  const turnovers=dd.turnovers||[];
-  const h=curHr();
-  const currentShiftType=h>=6&&h<18?"Day":"Night";
+  const key="turnover_"+dkv;
+  const saved=data[key];
+  const seed=dkv==="2026-04-02"?TURNOVER_SEED:{date:dkv,dayCrew:"",nightCrew:"",newThisShift:[],upcomingItems:[],ongoingReminders:[],siteAvailability:TURNOVER_SEED.siteAvailability};
+  const init=saved||seed;
 
-  // Auto snapshot from today's data
-  const avail=dd.bess_avail||{};
-  const alerts=[];
-  BESS_SITES.forEach(site=>{
-    const sd=avail[site.id]||{};let lnc=null,lsl=null;
-    AVAIL_SLOTS.forEach(sl=>{if(sd[sl]?.nc!=null&&sd[sl].nc!==""){lnc=parseFloat(sd[sl].nc);lsl=sl}});
-    if(lnc!=null&&lnc<=site.out)alerts.push({site:site.n,nc:lnc,max:site.max,slot:lsl});
-  });
-  const lowSoc=[];
-  BESS_SITES.forEach(site=>{
-    const sd=avail[site.id]||{};let last=null;
-    AVAIL_SLOTS.forEach(sl=>{const v=sd[sl]?.soc;if(v!=null&&v!=="")last=parseFloat(v)});
-    if(last!=null&&last<20)lowSoc.push({site:site.n,soc:last});
-  });
-  const viewingPast=dkv<dkf(new Date());
-  const eAS=AVAIL_SLOTS.filter(sl=>slotExpected(sl,h,viewingPast));
-  let missingCount=0;
-  BESS_SITES.forEach(site=>{const sd=avail[site.id]||{};eAS.forEach(sl=>{if(!sd[sl]||sd[sl].nc==null||sd[sl].nc==="")missingCount++})});
-  const compSecs=[
-    {key:"bess_avail",sites:BESS_SITES,slots:AVAIL_SLOTS,fields:["nc","soc"]},
-    {key:"bess_ctrl",sites:BESS_SITES,slots:CTRL_SLOTS,fields:["vvar","ads"]},
-    {key:"subs",sites:SUB_SITES,slots:SUB_SLOTS,fields:["sat"]},
-  ];
-  let tAll=0,fAll=0;
-  compSecs.forEach(sec=>{const sd=dd[sec.key]||{};const eSl=sec.slots.filter(sl=>slotExpected(sl,h,viewingPast));sec.sites.forEach(site=>{eSl.forEach(sl=>{sec.fields.forEach(f=>{tAll++;if(sd[site.id]?.[sl]?.[f]!=null&&sd[site.id][sl][f]!=="")fAll++})})})});
+  const [dayCrew,setDayCrew]=useState(init.dayCrew||"");
+  const [nightCrew,setNightCrew]=useState(init.nightCrew||"");
+  const [newItems,setNewItems]=useState(init.newThisShift||[]);
+  const [upcoming,setUpcoming]=useState(init.upcomingItems||[]);
+  const [ongoing,setOngoing]=useState(init.ongoingReminders||[]);
+  const [avail,setAvail]=useState(init.siteAvailability||[]);
+  const [newInput,setNewInput]=useState("");
+  const [upInput,setUpInput]=useState("");
+  const [onInput,setOnInput]=useState("");
 
-  // Draft state
-  const [issues,setIssues]=useState([{site:"",issue:"",status:"Active"}]);
-  const [events,setEvents]=useState("");
-  const [pending,setPending]=useState("");
-  const [submitting,setSubmitting]=useState(false);
-
-  // Acknowledge state
-  const [ackIdx,setAckIdx]=useState(null);
-
-  const addIssueRow=()=>setIssues(p=>[...p,{site:"",issue:"",status:"Active"}]);
-  const setIssue=(i,field,val)=>{const n=[...issues];n[i]={...n[i],[field]:val};setIssues(n)};
-  const removeIssue=(i)=>setIssues(p=>p.filter((_,j)=>j!==i));
-
-  const submit=()=>{
-    const filledIssues=issues.filter(r=>r.site.trim()||r.issue.trim());
-    const turnover={
-      id:Date.now(),
-      outgoing:{name:user.name,role:user.role,shift:user.shift},
-      shiftType:currentShiftType,
-      ts:Date.now(),
-      issues:filledIssues,
-      events:events.trim(),
-      pending:pending.trim(),
-      snapshot:{alerts:alerts.length,lowSoc:lowSoc.length,missing:missingCount,completion:tAll>0?pct(fAll,tAll):0,alertDetails:alerts.slice(0,5),lowSocDetails:lowSoc.slice(0,5)},
-      ack:null
-    };
-    onSave(dkv,turnover);
-    setIssues([{site:"",issue:"",status:"Active"}]);
-    setEvents("");
-    setPending("");
+  const save=(updates)=>{
+    const d={date:dkv,dayCrew,nightCrew,newThisShift:newItems,upcomingItems:upcoming,ongoingReminders:ongoing,siteAvailability:avail,...updates};
+    onSave(key,d);
   };
 
-  const acknowledge=(idx)=>{
-    const t=turnovers[idx];
-    if(!t)return;
-    const updated={...t,ack:{name:user.name,role:user.role,ts:Date.now()}};
-    const newTurnovers=[...turnovers];
-    newTurnovers[idx]=updated;
-    onSave(dkv,null,newTurnovers);
-    setAckIdx(null);
-  };
+  const is={width:"100%",padding:"8px 10px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:11,fontFamily:ft,outline:"none"};
 
-  const is={width:"100%",padding:"8px 10px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:4,color:C.white,fontSize:11,fontFamily:ft,outline:"none",boxSizing:"border-box"};
-  const selS={...is,cursor:"pointer",width:"auto",minWidth:90};
-
-  return(
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-      {/* New Turnover Form */}
-      <Box span="span 2"><SH color={C.y}>New Shift Turnover</SH>
-        <div style={{display:"flex",gap:12,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-          <div style={{fontSize:11,color:C.white}}><span style={{color:C.g,fontWeight:700}}>{user.name}</span> <span style={{color:C.dim}}>({user.role})</span></div>
-          <div style={{fontSize:11,color:h>=6&&h<18?C.y:C.b,fontWeight:600}}>{currentShiftType} Shift</div>
-          <div style={{fontSize:10,color:C.dim}}>{new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
-        </div>
-
-        {/* Issues & Exceptions */}
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:9,color:C.r,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Issues & Exceptions (sites needing attention)</div>
-          {issues.map((row,i)=><div key={i} style={{display:"flex",gap:6,marginBottom:4,alignItems:"center"}}>
-            <input value={row.site} onChange={e=>setIssue(i,"site",e.target.value)} placeholder="Site name" style={{...is,width:140,flexShrink:0}}/>
-            <input value={row.issue} onChange={e=>setIssue(i,"issue",e.target.value)} placeholder="Issue description" style={{...is,flex:1}}/>
-            <select value={row.status} onChange={e=>setIssue(i,"status",e.target.value)} style={selS}>
-              <option>Active</option><option>Monitoring</option><option>Resolved</option><option>Escalated</option>
-            </select>
-            {issues.length>1&&<button onClick={()=>removeIssue(i)} style={{padding:"4px 8px",background:"transparent",border:"1px solid "+C.brd,borderRadius:3,color:C.r,fontSize:11,fontFamily:ft,cursor:"pointer"}}>x</button>}
-          </div>)}
-          <button onClick={addIssueRow} style={{padding:"4px 12px",background:"transparent",border:"1px dashed "+C.brd,borderRadius:4,color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer",marginTop:2}}>+ Add Issue</button>
-        </div>
-
-        {/* Key Events */}
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:9,color:C.b,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Key Events This Shift</div>
-          <textarea value={events} onChange={e=>setEvents(e.target.value)} placeholder="Curtailments, outages, comms losses, commissioning, anything notable..." rows={3}
-            style={{...is,resize:"vertical",lineHeight:"1.5"}}/>
-        </div>
-
-        {/* Pending Actions */}
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:9,color:C.o,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Pending Actions / Follow-ups for Next Shift</div>
-          <textarea value={pending} onChange={e=>setPending(e.target.value)} placeholder="Things the incoming shift needs to do or watch for..." rows={3}
-            style={{...is,resize:"vertical",lineHeight:"1.5"}}/>
-        </div>
-
-        <button onClick={submit} style={{padding:"8px 24px",background:C.g,color:C.bg,border:"none",borderRadius:5,fontSize:12,fontWeight:700,fontFamily:ft,cursor:"pointer",letterSpacing:1}}>Submit Turnover</button>
-      </Box>
-
-      {/* Auto Snapshot */}
-      <Box><SH color={C.p}>Auto Snapshot (Current State)</SH>
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:C.bg,borderRadius:4,border:"1px solid "+C.brd}}>
-            <span style={{fontSize:10,color:C.dim}}>Overall Completion</span>
-            <span style={{fontSize:12,fontWeight:700,color:pct(fAll,tAll)>=90?C.g:pct(fAll,tAll)>=60?C.y:C.r}}>{pct(fAll,tAll)}%</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:C.bg,borderRadius:4,border:"1px solid "+C.brd}}>
-            <span style={{fontSize:10,color:C.dim}}>Missing Logs</span>
-            <span className={missingCount>0?"flash":""} style={{fontSize:12,fontWeight:700,color:missingCount>0?C.r:C.g}}>{missingCount}</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:alerts.length>0?C.r+"18":C.bg,borderRadius:4,border:"1px solid "+(alerts.length>0?C.r+"44":C.brd)}}>
-            <span style={{fontSize:10,color:C.dim}}>Sites in Outage</span>
-            <span style={{fontSize:12,fontWeight:700,color:alerts.length>0?C.r:C.g}}>{alerts.length}</span>
-          </div>
-          {alerts.length>0&&<div style={{padding:"4px 10px"}}>{alerts.map((a,i)=><div key={i} style={{fontSize:10,color:C.r,padding:"2px 0"}}>{a.site}: {a.nc}/{a.max} nodes</div>)}</div>}
-          <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:lowSoc.length>0?C.o+"18":C.bg,borderRadius:4,border:"1px solid "+(lowSoc.length>0?C.o+"44":C.brd)}}>
-            <span style={{fontSize:10,color:C.dim}}>SOC Below 20%</span>
-            <span style={{fontSize:12,fontWeight:700,color:lowSoc.length>0?C.o:C.g}}>{lowSoc.length}</span>
-          </div>
-          {lowSoc.length>0&&<div style={{padding:"4px 10px"}}>{lowSoc.map((s,i)=><div key={i} style={{fontSize:10,color:C.o,padding:"2px 0"}}>{s.site}: {s.soc}%</div>)}</div>}
-        </div>
-      </Box>
-
-      {/* Turnover History */}
-      <Box><SH color={C.b}>Turnover History ({turnovers.length})</SH>
-        {turnovers.length===0?<div style={{fontSize:11,color:C.dim}}>No turnovers submitted today</div>:
-        <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:400,overflowY:"auto"}}>
-          {turnovers.slice().reverse().map((t,ri)=>{const idx=turnovers.length-1-ri;return(
-            <div key={t.id||ri} style={{background:C.bg,border:"1px solid "+(t.ack?C.g+"66":C.y+"66"),borderRadius:6,padding:12}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <div>
-                  <span style={{fontSize:12,fontWeight:700,color:C.white}}>{t.outgoing?.name||"--"}</span>
-                  <span style={{fontSize:9,color:C.dim,marginLeft:6}}>{t.outgoing?.role}</span>
-                  <span style={{fontSize:10,color:t.shiftType==="Day"?C.y:C.b,fontWeight:600,marginLeft:8}}>{t.shiftType}</span>
-                </div>
-                <div style={{fontSize:9,color:C.dim}}>{t.ts?new Date(t.ts).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
-              </div>
-
-              {t.issues&&t.issues.length>0&&<div style={{marginBottom:6}}>
-                <div style={{fontSize:8,color:C.r,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Issues</div>
-                {t.issues.map((iss,j)=><div key={j} style={{fontSize:10,color:C.white,padding:"2px 0",display:"flex",gap:8}}>
-                  <span style={{color:C.g,fontWeight:600,minWidth:100}}>{iss.site}</span>
-                  <span style={{flex:1}}>{iss.issue}</span>
-                  <span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:iss.status==="Active"?C.r+"33":iss.status==="Escalated"?C.o+"33":iss.status==="Monitoring"?C.y+"33":C.g+"33",color:iss.status==="Active"?C.r:iss.status==="Escalated"?C.o:iss.status==="Monitoring"?C.y:C.g}}>{iss.status}</span>
-                </div>)}
-              </div>}
-
-              {t.events&&<div style={{marginBottom:6}}>
-                <div style={{fontSize:8,color:C.b,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Key Events</div>
-                <div style={{fontSize:10,color:C.txt,whiteSpace:"pre-wrap",lineHeight:"1.4"}}>{t.events}</div>
-              </div>}
-
-              {t.pending&&<div style={{marginBottom:6}}>
-                <div style={{fontSize:8,color:C.o,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Pending Actions</div>
-                <div style={{fontSize:10,color:C.txt,whiteSpace:"pre-wrap",lineHeight:"1.4"}}>{t.pending}</div>
-              </div>}
-
-              {t.snapshot&&<div style={{marginBottom:6}}>
-                <div style={{fontSize:8,color:C.p,fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:3}}>Snapshot at Turnover</div>
-                <div style={{display:"flex",gap:12,fontSize:9}}>
-                  <span style={{color:C.dim}}>Completion: <span style={{color:C.white,fontWeight:600}}>{t.snapshot.completion}%</span></span>
-                  <span style={{color:C.dim}}>Missing: <span style={{color:t.snapshot.missing>0?C.r:C.white,fontWeight:600}}>{t.snapshot.missing}</span></span>
-                  <span style={{color:C.dim}}>Outages: <span style={{color:t.snapshot.alerts>0?C.r:C.white,fontWeight:600}}>{t.snapshot.alerts}</span></span>
-                  <span style={{color:C.dim}}>Low SOC: <span style={{color:t.snapshot.lowSoc>0?C.o:C.white,fontWeight:600}}>{t.snapshot.lowSoc}</span></span>
-                </div>
-              </div>}
-
-              {/* Acknowledgment */}
-              <div style={{borderTop:"1px solid "+C.brd,marginTop:8,paddingTop:8}}>
-                {t.ack?<div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:C.g}}/>
-                  <span style={{fontSize:10,color:C.g,fontWeight:600}}>Acknowledged by {t.ack.name}</span>
-                  <span style={{fontSize:9,color:C.dim}}>({t.ack.role}) at {new Date(t.ack.ts).toLocaleString("en-US",{hour:"2-digit",minute:"2-digit"})}</span>
-                </div>
-                :<div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:C.y}} className="flash"/>
-                  <span style={{fontSize:10,color:C.y}}>Awaiting acknowledgment</span>
-                  {t.outgoing?.name!==user.name&&<button onClick={()=>acknowledge(idx)} style={{padding:"4px 12px",background:C.g,color:C.bg,border:"none",borderRadius:4,fontSize:10,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>Acknowledge</button>}
-                </div>}
-              </div>
-            </div>
-          )})}
-        </div>}
-      </Box>
+  const ListSection=({title,color,items,setItems,input,setInput})=>(
+    <div style={{marginBottom:16}}>
+      <div style={{fontSize:10,color:color,textTransform:"uppercase",letterSpacing:2,marginBottom:8,fontWeight:700}}>{title} ({items.length})</div>
+      <div style={{background:C.bg,border:"1px solid "+C.brd,borderRadius:5,padding:8,maxHeight:250,overflow:"auto"}}>
+        {items.map((item,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:6,padding:"4px 0",borderBottom:"1px solid "+C.brd}}>
+          <div style={{color:C.g,fontSize:10,marginTop:2,flexShrink:0}}>*</div>
+          <div style={{flex:1,fontSize:10,color:C.white,lineHeight:1.4}}>{typeof item==="object"?item.text:item}</div>
+          <button onClick={()=>{const n=items.filter((_,j)=>j!==i);setItems(n)}} style={{background:"none",border:"none",color:C.r,fontSize:10,cursor:"pointer",flexShrink:0,padding:"0 2px"}}>x</button>
+        </div>)}
+        {items.length===0&&<div style={{fontSize:10,color:C.dim,padding:4}}>No items</div>}
+      </div>
+      <div style={{display:"flex",gap:4,marginTop:4}}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){const n=[...items,input.trim()];setItems(n);setInput("")}}} placeholder={"Add "+title.toLowerCase()+"..."} style={{...is,flex:1,fontSize:10}}/>
+        <button onClick={()=>{if(input.trim()){const n=[...items,input.trim()];setItems(n);setInput("")}}} style={{padding:"4px 10px",background:C.g,color:C.bg,border:"none",borderRadius:4,fontSize:9,fontFamily:ft,cursor:"pointer"}}>+</button>
+      </div>
     </div>
   );
+
+  return <div>
+    {/* Header */}
+    <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.white}}>Shift Turnover - {dkv}</div>
+      <button onClick={()=>save({newThisShift:newItems,upcomingItems:upcoming,ongoingReminders:ongoing,siteAvailability:avail})} style={{padding:"4px 14px",background:C.g,color:C.bg,border:"none",borderRadius:4,fontSize:10,fontWeight:700,fontFamily:ft,cursor:"pointer"}}>Save Turnover</button>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+      <div><div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Day Crew</div>
+        <input value={dayCrew} onChange={e=>setDayCrew(e.target.value)} style={is} placeholder="Day crew names..."/></div>
+      <div><div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Night Crew</div>
+        <input value={nightCrew} onChange={e=>setNightCrew(e.target.value)} style={is} placeholder="Night crew names..."/></div>
+    </div>
+
+    {/* Two column layout */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:12}}>
+      <div>
+        <ListSection title="New This Shift" color={C.y} items={newItems} setItems={setNewItems} input={newInput} setInput={setNewInput}/>
+        <ListSection title="Upcoming Items" color={C.b} items={upcoming} setItems={setUpcoming} input={upInput} setInput={setUpInput}/>
+        <ListSection title="Ongoing Reminders" color={C.o} items={ongoing} setItems={setOngoing} input={onInput} setInput={setOnInput}/>
+      </div>
+      <div>
+        <div style={{fontSize:10,color:C.p,textTransform:"uppercase",letterSpacing:2,marginBottom:8,fontWeight:700}}>Site Availability</div>
+        <div style={{background:C.bg,border:"1px solid "+C.brd,borderRadius:5,overflow:"hidden"}}>
+          <table style={{borderCollapse:"collapse",width:"100%"}}>
+            <thead><tr>
+              <th style={{padding:"6px 8px",fontSize:8,color:C.dim,textTransform:"uppercase",letterSpacing:2,borderBottom:"1px solid "+C.brd,textAlign:"left"}}>Site</th>
+              <th style={{padding:"6px 8px",fontSize:8,color:C.dim,textTransform:"uppercase",letterSpacing:2,borderBottom:"1px solid "+C.brd,textAlign:"center"}}>PV MW</th>
+              <th style={{padding:"6px 8px",fontSize:8,color:C.dim,textTransform:"uppercase",letterSpacing:2,borderBottom:"1px solid "+C.brd,textAlign:"center"}}>BESS MW</th>
+            </tr></thead>
+            <tbody>{avail.map((a,i)=><tr key={i}>
+              <td style={{padding:"4px 8px",fontSize:10,color:C.white,borderBottom:"1px solid "+C.brd,fontWeight:600}}>{a.site}</td>
+              <td style={{padding:"4px 8px",borderBottom:"1px solid "+C.brd,textAlign:"center"}}>
+                <input type="number" value={a.pv||""} onChange={e=>{const n=[...avail];n[i]={...n[i],pv:e.target.value?parseFloat(e.target.value):null};setAvail(n)}} style={{width:50,padding:"2px 4px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:3,color:C.white,fontSize:10,fontFamily:ft,textAlign:"center",outline:"none"}} placeholder="-"/>
+              </td>
+              <td style={{padding:"4px 8px",borderBottom:"1px solid "+C.brd,textAlign:"center"}}>
+                <input type="number" value={a.bess||""} onChange={e=>{const n=[...avail];n[i]={...n[i],bess:e.target.value?parseFloat(e.target.value):null};setAvail(n)}} style={{width:50,padding:"2px 4px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:3,color:C.white,fontSize:10,fontFamily:ft,textAlign:"center",outline:"none"}} placeholder="-"/>
+              </td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>;
 }
 
 // ================================================================
@@ -2192,7 +2206,7 @@ function App(){
             {sep}
             {tb(-6,"Outage Charts",C.b)}
             {tb(-5,"Outage Log",C.b,activeOut>0?<span style={{marginLeft:4,padding:"1px 5px",borderRadius:8,background:C.r,color:"#fff",fontSize:8}}>{activeOut}</span>:null)}
-            {tb(-4,"AVR / VAR-002",C.r)}
+            {tb(-4,"Compliance",C.r)}
             {sep}
             {tb(-3,"Site Reference",C.o)}
           </div>;
@@ -2202,7 +2216,7 @@ function App(){
         {secIdx===-1
           ? <Dashboard data={data} dayKey={dkv} user={user} onSaveNote={(note)=>saveNote(dkv,note)}/>
           : secIdx===-2
-          ? <Turnover data={data} dayKey={dkv} user={user} onSave={saveTurnover}/>
+          ? <Turnover data={data} dayKey={dkv} user={user} onSave={(key,val)=>{const cur=dataRef.current;persist({...cur,[key]:val});}}/>
           : secIdx===-3
           ? <SiteReference/>
           : secIdx===-4

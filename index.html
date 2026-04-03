@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ROCC Operations Log - AES Clean Energy</title>
+<title>ROCC Operations Log - ROCC Portal</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B2838'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='%2300e5a0' font-family='monospace' font-weight='bold'>R</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -452,7 +452,7 @@ function Login({onLogin,onToggleTheme,theme}){
       <div style={{width:420,padding:40,background:C.s,border:"1px solid "+C.brd,borderRadius:16,boxShadow:"0 8px 32px rgba(0,0,0,0.4)"}}>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{width:48,height:48,borderRadius:12,background:"linear-gradient(135deg,"+C.g+","+C.b+")",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:22,fontWeight:700,color:"#fff"}}>A</div>
-          <div style={{fontSize:11,letterSpacing:4,color:C.g,textTransform:"uppercase",marginBottom:4,fontWeight:600}}>AES Clean Energy</div>
+          <div style={{fontSize:11,letterSpacing:4,color:C.g,textTransform:"uppercase",marginBottom:4,fontWeight:600}}>Remote Operations</div>
           <div style={{fontSize:24,fontWeight:700,color:C.white,letterSpacing:"-0.5px"}}>ROCC Portal</div>
           <div style={{fontSize:12,color:C.dim,marginTop:6,fontWeight:500}}>Remote Operations Control Center</div>
         </div>
@@ -2056,7 +2056,7 @@ function Report({data,dayKey:dkv,user,onClose}){
           <div ref={ref} style={{padding:20,fontFamily:"Arial,sans-serif",color:"#1a1a2e",fontSize:9}}>
             <div style={{borderBottom:"3px solid #0a0e14",paddingBottom:8,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
               <div><div style={{fontFamily:"monospace",fontSize:16,fontWeight:700}}>ROCC Daily Operations Report</div><div style={{fontSize:11,color:"#555"}}>{dateStr}</div></div>
-              <div style={{textAlign:"right",fontSize:8,color:"#777"}}><div style={{fontWeight:700,color:"#1a1a2e",fontSize:10}}>AES Clean Energy</div><div>Control Center Operations</div><div>Generated: {new Date().toLocaleString("en-US")}</div></div>
+              <div style={{textAlign:"right",fontSize:8,color:"#777"}}><div style={{fontWeight:700,color:"#1a1a2e",fontSize:10}}>ROCC Portal</div><div>Control Center Operations</div><div>Generated: {new Date().toLocaleString("en-US")}</div></div>
             </div>
             {shifts.length>0&&<div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>{shifts.map((s,i)=><div key={i} style={{background:"#f5f5f5",padding:"4px 10px",borderRadius:3,fontSize:9}}><strong>{s.name}</strong> ({s.role}) - {s.shift} - {fT(s.loginTime)}</div>)}</div>}
             {renderT("BESS Availability","bess_avail",BESS_SITES,AVAIL_SLOTS,AVAIL_LBL,[{id:"nc",label:"#N/C",alert:"out"},{id:"soc",label:"SOC%"}],true)}
@@ -2097,7 +2097,7 @@ function Report({data,dayKey:dkv,user,onClose}){
               </table>
             </div>}
             <div style={{marginTop:20,display:"flex",gap:36}}>{["Operator Signature","Shift Lead Signature","Date"].map(l=><div key={l} style={{flex:1}}><div style={{borderBottom:"1px solid #999",height:20,marginBottom:2}}/><div style={{fontSize:7,color:"#777",textTransform:"uppercase",letterSpacing:1}}>{l}</div></div>)}</div>
-            <div style={{marginTop:14,paddingTop:6,borderTop:"2px solid #0a0e14",display:"flex",justifyContent:"space-between",fontSize:8,color:"#777"}}><div>AES Clean Energy - ROCC Control Center Voltage Logs V3.0 | Developed by Rocky Dev Co.</div><div>Confidential - Internal Use Only</div></div>
+            <div style={{marginTop:14,paddingTop:6,borderTop:"2px solid #0a0e14",display:"flex",justifyContent:"space-between",fontSize:8,color:"#777"}}><div>ROCC Portal - ROCC Control Center Voltage Logs V3.0 | Developed by Rocky Dev Co.</div><div>Confidential - Internal Use Only</div></div>
           </div>
         </div>
       </div>
@@ -2473,7 +2473,7 @@ function App(){
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,"+C.g+","+C.b+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>A</div>
-            <div><div style={{fontSize:10,letterSpacing:3,color:C.g,textTransform:"uppercase",fontWeight:600,lineHeight:1}}>AES Clean Energy</div><div style={{fontSize:13,fontWeight:700,color:C.white,letterSpacing:"-0.3px",lineHeight:1.3}}>ROCC Portal</div></div>
+            <div><div style={{fontSize:10,letterSpacing:3,color:C.g,textTransform:"uppercase",fontWeight:600,lineHeight:1}}>Remote Operations</div><div style={{fontSize:13,fontWeight:700,color:C.white,letterSpacing:"-0.3px",lineHeight:1.3}}>ROCC Portal</div></div>
           </div>
           {/* Sync indicator */}
           <div style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer"}} onClick={refreshNow} title="Click to refresh from Google Sheets">
@@ -2609,7 +2609,7 @@ function App(){
 
       <SitePopup siteName={sitePopup} onClose={()=>setSitePopup(null)}/>
       {showReport&&<Report data={data} dayKey={dkv} user={user} onClose={()=>setShowReport(false)}/>}
-      <div style={{textAlign:"center",padding:"12px 0",fontSize:9,color:C.dim,borderTop:"1px solid "+C.brd,marginTop:12}}>AES Clean Energy | ROCC Portal v5.0 | Remote Operations Control Center</div>
+      <div style={{textAlign:"center",padding:"12px 0",fontSize:9,color:C.dim,borderTop:"1px solid "+C.brd,marginTop:12}}>ROCC Portal v5.0 | Remote Operations Control Center | Rocky Dev Co.</div>
     </div>
   );
 }

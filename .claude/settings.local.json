@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(git config:*)",
-      "Bash(claude config:*)"
+      "Bash(claude config:*)",
+      "Bash(sed -n '175,277p' index.html)",
+      "Bash(sed -n '278,311p' index.html)",
+      "Read(//tmp/**)"
     ]
   }
 }

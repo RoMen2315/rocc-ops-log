@@ -275,6 +275,40 @@ const AVAIL_MATRIX_SITES=[
   {site:"Lawai",pvCap:20000,essCap:0,pvInvKw:1400,essInvKw:0},
   {site:"Kekaha",pvCap:14000,essCap:0,pvInvKw:1400,essInvKw:0}
 ];
+const SLC_FLEET=[
+{s:"Bakersfield Ind",mw:1,t:"PV"},{s:"Bakersfield PV",mw:5.25,t:"PV"},{s:"Delano Land 1",mw:1,t:"PV"},{s:"Lemoore",mw:1.5,t:"PV"},{s:"Manteca Land 1",mw:1,t:"PV"},
+{s:"Central Line Solar",mw:100,t:"PV"},{s:"East Line",mw:100,t:"PV"},{s:"West Line",mw:100,t:"PV"},
+{s:"McFarland A BESS",mw:100,t:"BESS"},{s:"McFarland A PV",mw:200,t:"PV"},{s:"McFarland B Hybrid",mw:300,t:"Hybrid"},{s:"McFarland C BESS",mw:185,t:"BESS"},{s:"Sandstone",mw:45,t:"PV"},
+{s:"Industry",mw:1.5,t:"PV"},{s:"Navajo",mw:1.5,t:"PV"},{s:"Otoe",mw:1.5,t:"PV"},{s:"Powhatan",mw:1.5,t:"PV"},
+{s:"Chevron 2MW",mw:2,t:"PV"},{s:"Chevron 8.5MW",mw:8.5,t:"PV"},{s:"Discovery Kingdom",mw:6.33,t:"PV"},
+{s:"Beacon 1",mw:56,t:"PV"},{s:"Beacon 3",mw:56,t:"PV"},{s:"Beacon 4",mw:50,t:"PV"},
+{s:"ABSR",mw:20,t:"PV"},{s:"Antelope Exp 1B",mw:17,t:"PV"},{s:"Antelope Exp 2",mw:105,t:"PV"},{s:"Antelope Exp 3A",mw:15,t:"PV"},{s:"Antelope Exp 3B",mw:5,t:"PV"},
+{s:"Bayshore A",mw:20,t:"PV"},{s:"Bayshore B",mw:20,t:"PV"},{s:"Bayshore C",mw:20,t:"PV"},
+{s:"DSR-1",mw:50,t:"PV"},{s:"DSR-2",mw:5,t:"PV"},{s:"DSR-3",mw:20,t:"PV"},{s:"Elevation C",mw:40,t:"PV"},
+{s:"LAB",mw:127,t:"BESS"},{s:"Luna",mw:100,t:"BESS"},{s:"San Pablo Raceway",mw:100,t:"PV"},{s:"Solverde 1",mw:85,t:"PV"},{s:"Summer",mw:20,t:"PV"},{s:"WABSR-B",mw:20,t:"PV"},
+{s:"Estrella PV",mw:56,t:"PV"},{s:"Estrella BESS",mw:28,t:"BESS"},{s:"Raceway PV",mw:125,t:"PV"},{s:"Raceway BESS",mw:80,t:"BESS"},
+{s:"Adera",mw:20,t:"PV"},{s:"Aspiration G",mw:9,t:"PV"},{s:"Citizen B",mw:5,t:"PV"},{s:"ASGW",mw:6.5,t:"PV"},{s:"LDFR-B",mw:5,t:"PV"},
+{s:"Rodeo C2",mw:1.5,t:"PV"},{s:"Rodeo D2",mw:1.5,t:"PV"},{s:"Summer A2",mw:1.5,t:"PV"},{s:"Summer B2",mw:1.5,t:"PV"},{s:"Summer C2",mw:1.5,t:"PV"},{s:"Summer D2",mw:1,t:"PV"},
+{s:"WAD-B",mw:3,t:"PV"},{s:"Mojave West",mw:20,t:"PV"},{s:"Green Beanworks B",mw:3,t:"PV"},{s:"Green Beanworks C",mw:3,t:"PV"},{s:"Green Beanworks D",mw:3,t:"PV"},
+{s:"LLR-C",mw:5,t:"PV"},{s:"Palmdale East",mw:10,t:"PV"},{s:"SEPV 18",mw:2,t:"PV"},{s:"CADR-C",mw:20,t:"PV"},{s:"North Lancaster Ranch",mw:20,t:"PV"},{s:"Sierra",mw:20,t:"PV"},
+{s:"WABSR-A",mw:20,t:"PV"},{s:"WADR",mw:10,t:"PV"},{s:"Hayworth",mw:26.656,t:"PV"},{s:"Redcrest",mw:16.66,t:"PV"},{s:"Woodmere",mw:14.994,t:"PV"},
+{s:"Expressway A",mw:2,t:"PV"},{s:"Expressway B",mw:2,t:"PV"},{s:"Expressway C2",mw:1.5,t:"PV"},{s:"VDFR-A",mw:5,t:"PV"},{s:"VDFR-B",mw:5,t:"PV"},
+{s:"Victor Mesa Linda B2",mw:1.5,t:"PV"},{s:"Victor Mesa Linda C2",mw:1.5,t:"PV"},{s:"Victor Mesa Linda D2",mw:1.5,t:"PV"},{s:"Victor Mesa Linda E2",mw:1.5,t:"PV"},
+{s:"ID Solar I",mw:40,t:"PV"},{s:"Baldy Mesa Hybrid",mw:225,t:"Hybrid"},{s:"Silver Peak",mw:25,t:"BESS"},
+{s:"Bellefield 1 PV",mw:200,t:"PV"},{s:"Bellefield 1 BESS",mw:200,t:"BESS"},{s:"Rexford PV",mw:100,t:"PV"},{s:"Rexford BESS",mw:50,t:"BESS"},
+{s:"Westwing 1",mw:80,t:"BESS"},{s:"Westwing 2",mw:120,t:"BESS"},
+{s:"Alicea",mw:2,t:"PV+BESS"},{s:"Annese",mw:4.6,t:"PV+BESS"},{s:"Desmond",mw:4.995,t:"PV+BESS"},{s:"Exeter",mw:10,t:"PV+BESS"},
+{s:"Hanrahan",mw:1.5,t:"PV+BESS"},{s:"Heyes",mw:4.995,t:"PV+BESS"},{s:"Lincoln Ave 1",mw:3.15,t:"PV+BESS"},{s:"Lincoln Ave 2",mw:4.89,t:"PV+BESS"},
+{s:"Orchards",mw:4.3,t:"PV+BESS"},{s:"Remillard",mw:2.8,t:"PV+BESS"},{s:"University Solar",mw:24,t:"PV+BESS"},{s:"West A&B",mw:2.5,t:"PV+BESS"},
+{s:"Kekaha",mw:14,t:"PV+BESS"},{s:"Lawai",mw:20,t:"PV+BESS"},
+{s:"Brookwood Solar",mw:4.99,t:"PV+BESS"},{s:"Bullock Rd",mw:4.99,t:"PV+BESS"},{s:"Chelmsford",mw:0.91,t:"PV+BESS"},{s:"Coy Hill",mw:4,t:"PV+BESS"},
+{s:"Cronin",mw:1.5,t:"PV+BESS"},{s:"Cycz",mw:2,t:"PV+BESS"},{s:"Driving Range A",mw:4.95,t:"PV+BESS"},{s:"Driving Range C",mw:4.6,t:"PV+BESS"},
+{s:"Hurteau",mw:2,t:"PV+BESS"},{s:"McDougle-Mitchell",mw:4.5,t:"PV+BESS"},{s:"Mendon",mw:1,t:"PV+BESS"},{s:"North Brookfield PV+BESS",mw:4.2,t:"PV+BESS"},
+{s:"Partridge Hill",mw:2,t:"PV+BESS"},{s:"Pleasant Street",mw:4.5,t:"PV+BESS"},{s:"Randall Road",mw:5,t:"PV+BESS"},{s:"Rear Somers",mw:3.875,t:"PV+BESS"},
+{s:"South Grafton",mw:1.76,t:"PV+BESS"},{s:"South Main",mw:4.99,t:"PV+BESS"},{s:"Tetreault",mw:1,t:"PV+BESS"},{s:"West Haydenville PJ",mw:4.95,t:"PV+BESS"},
+{s:"Finchville",mw:5,t:"PV+BESS"},{s:"Glenmere Lake",mw:2,t:"PV+BESS"},{s:"South Centerville",mw:1.56,t:"PV+BESS"},{s:"South Goshen",mw:5,t:"PV+BESS"},{s:"Walden",mw:5,t:"PV+BESS"},
+{s:"Clover Creek",mw:80,t:"PV"},{s:"Prevailing Winds",mw:208,t:"Wind"}
+];
 const RANDO_SLOTS=["1000","1500"];
 const RANDO_LBL=["10:00","15:00"];
 
@@ -463,7 +497,8 @@ function SiteCard({siteName,onClose}){
   const Row=({label,val})=>val?<div style={{display:"flex",gap:8,fontSize:11,marginBottom:3}}><span style={{color:C.dim,minWidth:100}}>{label}:</span><span style={{color:C.white,fontWeight:600}}>{val}</span></div>:null;
   return <div style={{maxHeight:"70vh",overflow:"auto",padding:4}}>
     <div style={{fontSize:14,fontWeight:700,color:C.g,marginBottom:4}}>{s.name}</div>
-    <div style={{fontSize:10,color:C.dim,marginBottom:12}}>{s.loc}{s.dispatch?" | "+s.dispatch:""}</div>
+    <div style={{fontSize:10,color:C.dim,marginBottom:4}}>{s.loc}{s.dispatch?" | "+s.dispatch:""}</div>
+    {(()=>{const fl=SLC_FLEET.find(f=>s.name.toLowerCase().includes(f.s.toLowerCase())||f.s.toLowerCase().includes(s.name.toLowerCase().split(" ")[0]));return fl?<div style={{fontSize:10,color:C.b,marginBottom:12,fontWeight:600}}>{fl.mw} MW AC | {fl.t}</div>:null})()}
     <Sec title="CAISO / Grid" color={C.b}>
       <Row label="CAISO ID" val={s.caiso}/><Row label="ISO #" val={s.iso}/><Row label="SAP FLOC" val={s.sap}/><Row label="RIG ID" val={s.rig}/><Row label="Substation" val={s.sub}/>
       {ref.nerc&&<><Row label="Region" val={ref.nerc.region}/><Row label="BA" val={ref.nerc.ba}/><Row label="TOP" val={ref.nerc.top}/><Row label="TO" val={ref.nerc.to_owner}/><Row label="RC" val={ref.nerc.rc}/></>}
@@ -1074,7 +1109,7 @@ function OutageTracker({data,user,onSave}){
 
     const siteResults=siteSearch.length>=2&&REF_DATA?REF_DATA.sites.filter(s=>s.name.toLowerCase().includes(siteSearch.toLowerCase())||s.caiso.toLowerCase().includes(siteSearch.toLowerCase())).slice(0,8):[];
 
-    const selectSite=(s)=>{setSite(s.name);setCaiso(s.caiso);setSiteSearch(s.name)};
+    const selectSite=(s)=>{setSite(s.name);setCaiso(s.caiso);setSiteSearch(s.name);const fl=SLC_FLEET.find(f=>s.name.toLowerCase().includes(f.s.toLowerCase())||f.s.toLowerCase().includes(s.name.toLowerCase().split(" ")[0]));if(fl&&!mw)setMw(String(fl.mw))};
 
     const submit=()=>{
       if(!site)return;
@@ -1508,6 +1543,26 @@ function Dashboard({data,dayKey:dkv,user,onSaveNote,onRemoveShift}){
             <div style={{flex:1}}><Bar pct={c.pct} color={c.pct>=90?C.g:c.pct>=60?C.y:C.r}/></div>
             <div style={{fontSize:10,fontWeight:600,color:c.pct>=90?C.g:c.pct>=60?C.y:C.r,width:32,textAlign:"right"}}>{c.pct}%</div>
           </div>)}</div>
+      </Box>
+
+      {/* Fleet Summary */}
+      <Box><SH color={C.b}>Fleet Capacity ({SLC_FLEET.length} Sites)</SH>
+        {(()=>{
+          const pvMw=SLC_FLEET.filter(s=>s.t==="PV"||s.t==="Hybrid").reduce((a,s)=>a+s.mw,0);
+          const bessMw=SLC_FLEET.filter(s=>s.t==="BESS"||s.t==="Hybrid").reduce((a,s)=>a+s.mw,0);
+          const pvbMw=SLC_FLEET.filter(s=>s.t==="PV+BESS").reduce((a,s)=>a+s.mw,0);
+          const windMw=SLC_FLEET.filter(s=>s.t==="Wind").reduce((a,s)=>a+s.mw,0);
+          const total=SLC_FLEET.reduce((a,s)=>a+s.mw,0);
+          return <div>
+            <div style={{fontSize:22,fontWeight:700,color:C.white,textAlign:"center",marginBottom:8}}>{total.toFixed(1)} <span style={{fontSize:11,color:C.dim}}>MW Total</span></div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10}}><span style={{color:C.g}}>PV Solar</span><span style={{color:C.white,fontWeight:600}}>{pvMw.toFixed(1)} MW</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10}}><span style={{color:C.b}}>BESS</span><span style={{color:C.white,fontWeight:600}}>{bessMw.toFixed(1)} MW</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10}}><span style={{color:C.p}}>PV+BESS (ISO-NE/MA)</span><span style={{color:C.white,fontWeight:600}}>{pvbMw.toFixed(1)} MW</span></div>
+              {windMw>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:10}}><span style={{color:C.y}}>Wind</span><span style={{color:C.white,fontWeight:600}}>{windMw.toFixed(1)} MW</span></div>}
+            </div>
+          </div>;
+        })()}
       </Box>
 
       {/* SOC Heatmap */}

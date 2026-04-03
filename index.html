@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+  ROCC Portal - Remote Operations Control Center
+  Copyright (c) 2026 Rocky Dev Co. | Rosendo Meza
+  All rights reserved. This software is the intellectual property
+  of Rocky Dev Co. Unauthorized reproduction or distribution is prohibited.
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2700,7 +2706,7 @@ function App(){
 
       <SitePopup siteName={sitePopup} onClose={()=>setSitePopup(null)}/>
       {showReport&&<Report data={data} dayKey={dkv} user={user} onClose={()=>setShowReport(false)}/>}
-      <div style={{textAlign:"center",padding:"12px 0",fontSize:9,color:C.dim,borderTop:"1px solid "+C.brd,marginTop:12}}>ROCC Portal v5.0 | Remote Operations Control Center | Rocky Dev Co.</div>
+      <div style={{textAlign:"center",padding:"12px 0",fontSize:9,color:C.dim,borderTop:"1px solid "+C.brd,marginTop:12}}>ROCC Portal v5.0 | Remote Operations Control Center | \u00A9 2026 Rocky Dev Co. | Owned & Developed by Rosendo Meza</div>
     </div>
   );
 }

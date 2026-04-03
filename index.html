@@ -8,13 +8,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#121418;color:#d1d5db;transition:background .3s,color .3s;line-height:1.5;font-size:13px;-webkit-font-smoothing:antialiased}
-body.light{background:#f3f4f6;color:#111827}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0a1628;color:#cdd5e0;transition:background .3s,color .3s;line-height:1.5;font-size:13px;-webkit-font-smoothing:antialiased}
+body.light{background:#f0f4f8;color:#0e1e36}
 #root{max-width:1600px;margin:0 auto}
 ::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-track{background:#16191f}
+::-webkit-scrollbar-track{background:#0c1a2e}
 body.light ::-webkit-scrollbar-track{background:#e5e7eb}
-::-webkit-scrollbar-thumb{background:#363b46;border-radius:4px}
+::-webkit-scrollbar-thumb{background:#1a3050;border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:#2a4a70}
 body.light ::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:4px}
 input,select,button,textarea{font-family:'Inter',system-ui,sans-serif}
@@ -49,12 +49,12 @@ const ft="'Inter',system-ui,-apple-system,sans-serif";
 const DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const DS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const THEMES={
-  dark:{bg:"#121418",s:"#1a1d23",s2:"#20242b",brd:"#2a2e37",brd2:"#363b46",txt:"#d1d5db",dim:"#737984",
-    g:"#4ead8a",gd:"#4ead8a12",y:"#d4a037",r:"#c9413d",b:"#5a8ec7",p:"#8578b5",o:"#c47a3f",
-    white:"#e8eaed",inputBg:"#15171c",headerBg:"#16191f"},
-  light:{bg:"#f3f4f6",s:"#ffffff",s2:"#fafafa",brd:"#d1d5db",brd2:"#9ca3af",txt:"#111827",dim:"#4b5563",
-    g:"#3d8b6e",gd:"#3d8b6e12",y:"#b8912e",r:"#b33a36",b:"#4a79ab",p:"#6f65a0",o:"#a86835",
-    white:"#111827",inputBg:"#f9fafb",headerBg:"#ffffff"}
+  dark:{bg:"#0a1628",s:"#0f1d32",s2:"#13233a",brd:"#1a3050",brd2:"#244068",txt:"#cdd5e0",dim:"#6b7a8d",
+    g:"#2d9b6e",gd:"#2d9b6e14",y:"#c4952e",r:"#c43b3b",b:"#3d7ec2",p:"#7068a8",o:"#b87035",
+    white:"#e4e8ee",inputBg:"#081322",headerBg:"#0c1a2e"},
+  light:{bg:"#f0f4f8",s:"#ffffff",s2:"#f7f9fc",brd:"#c8d1dc",brd2:"#94a3b8",txt:"#0e1e36",dim:"#4a5a70",
+    g:"#247a58",gd:"#247a5814",y:"#a07d26",r:"#a83333",b:"#30689e",p:"#5c5590",o:"#9c5f2d",
+    white:"#0e1e36",inputBg:"#f5f7fa",headerBg:"#ffffff"}
 };
 let C=THEMES[localStorage.getItem("rocc_theme")||"dark"]||THEMES.dark;
 const ThemeCtx=React.createContext("dark");
@@ -448,18 +448,30 @@ function Login({onLogin,onToggleTheme,theme}){
   const go=()=>name&&onLogin({name,role,shift,loginTime:Date.now()});
   const is={width:"100%",padding:"10px 12px",background:C.inputBg,border:"1px solid "+C.brd,borderRadius:5,color:C.white,fontSize:14,fontFamily:ft,outline:"none",boxSizing:"border-box"};
   return(
-    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:ft}}>
-      <div style={{width:420,padding:40,background:C.s,border:"1px solid "+C.brd,borderRadius:16,boxShadow:"0 8px 32px rgba(0,0,0,0.4)"}}>
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#06101e 0%,#0a1628 40%,#0e1f38 100%)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:ft,position:"relative",overflow:"hidden"}}>
+      {/* Background graphic */}
+      <div style={{position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none"}}>
+        <div style={{position:"absolute",top:"10%",left:"5%",fontSize:120,fontWeight:800,color:"#ffffff03",letterSpacing:8,lineHeight:1.1,transform:"rotate(-8deg)",whiteSpace:"nowrap"}}>CLEAN<br/>ENERGY</div>
+        <div style={{position:"absolute",bottom:"8%",right:"3%",fontSize:90,fontWeight:800,color:"#ffffff03",letterSpacing:6,transform:"rotate(4deg)",whiteSpace:"nowrap"}}>BESS</div>
+        <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:600,height:600,borderRadius:"50%",background:"radial-gradient(circle,#1a6b4a08 0%,transparent 70%)"}}/>
+        <div style={{position:"absolute",top:"20%",right:"15%",width:300,height:300,borderRadius:"50%",background:"radial-gradient(circle,#2a5a8c06 0%,transparent 70%)"}}/>
+        {/* Grid lines */}
+        <svg width="100%" height="100%" style={{position:"absolute",inset:0,opacity:0.03}}>
+          <defs><pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M 60 0 L 0 0 0 60" fill="none" stroke="#fff" strokeWidth="0.5"/></pattern></defs>
+          <rect width="100%" height="100%" fill="url(#grid)"/>
+        </svg>
+      </div>
+      <div style={{width:440,padding:40,background:C.s+"ee",border:"1px solid "+C.brd,borderRadius:16,boxShadow:"0 12px 48px rgba(0,0,0,0.5)",backdropFilter:"blur(12px)",position:"relative",zIndex:1}}>
         <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{width:48,height:48,borderRadius:12,background:"linear-gradient(135deg,#3a3f4a,#52586a)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:22,fontWeight:700,color:"#fff"}}>A</div>
-          <div style={{fontSize:11,letterSpacing:4,color:C.dim,textTransform:"uppercase",marginBottom:4,fontWeight:600}}>Remote Operations</div>
-          <div style={{fontSize:24,fontWeight:700,color:C.white,letterSpacing:"-0.5px"}}>ROCC Portal</div>
-          <div style={{fontSize:12,color:C.dim,marginTop:6,fontWeight:500}}>Remote Operations Control Center</div>
+          <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#1a6b4a,#2a5a8c)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:22,fontWeight:700,color:"#fff",boxShadow:"0 4px 16px rgba(26,107,74,0.3)"}}>R</div>
+          <div style={{fontSize:10,letterSpacing:5,color:"#2d9b6e",textTransform:"uppercase",marginBottom:6,fontWeight:600}}>Remote Operations Control Center</div>
+          <div style={{fontSize:28,fontWeight:700,color:C.white,letterSpacing:"-0.5px"}}>ROCC Portal</div>
+          <div style={{fontSize:11,color:C.dim,marginTop:8,fontWeight:400}}>Shift Operations Dashboard</div>
         </div>
         <div style={{marginBottom:14}}>
           <div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Select Operator</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:8}}>
-            {OPERATORS.map(op=><button key={op} onClick={()=>setSelOp(op)} style={{padding:"8px 4px",background:selOp===op?"#e8eaed14":C.bg,border:"1px solid "+(selOp===op?"#e8eaed44":C.brd),borderRadius:6,color:selOp===op?C.white:C.dim,fontSize:11,fontFamily:ft,cursor:"pointer",fontWeight:selOp===op?600:400,transition:"all .15s"}}>{op}</button>)}
+            {OPERATORS.map(op=><button key={op} onClick={()=>setSelOp(op)} style={{padding:"8px 4px",background:selOp===op?"#1a6b4a18":C.bg,border:"1px solid "+(selOp===op?"#2d9b6e55":C.brd),borderRadius:6,color:selOp===op?"#2d9b6e":C.dim,fontSize:11,fontFamily:ft,cursor:"pointer",fontWeight:selOp===op?600:400,transition:"all .15s"}}>{op}</button>)}
             <button onClick={()=>setSelOp("Guest")} style={{padding:"8px 4px",background:selOp==="Guest"?C.o+"22":C.bg,border:"1px solid "+(selOp==="Guest"?C.o:C.brd),borderRadius:5,color:selOp==="Guest"?C.o:C.dim,fontSize:11,fontFamily:ft,cursor:"pointer",fontWeight:selOp==="Guest"?700:400,transition:"all .15s"}}>Guest</button>
           </div>
           {selOp==="Guest"&&<input value={guestName} onChange={e=>setGuestName(e.target.value)} placeholder="Enter your name..." onKeyDown={e=>e.key==="Enter"&&go()} style={is} autoFocus/>}
@@ -476,7 +488,7 @@ function Login({onLogin,onToggleTheme,theme}){
               <option value="Day">Day (0600-1800)</option><option value="Night">Night (1800-0600)</option>
             </select></div>
         </div>
-        <button onClick={go} disabled={!name} style={{width:"100%",padding:12,background:name?"#e8eaed":C.brd,color:name?"#121418":C.dim,border:"none",borderRadius:8,fontSize:12,fontWeight:600,fontFamily:ft,letterSpacing:1,textTransform:"uppercase",cursor:name?"pointer":"not-allowed"}}>Sign In{name?" as "+name:""}</button>
+        <button onClick={go} disabled={!name} style={{width:"100%",padding:12,background:name?"linear-gradient(135deg,#1a6b4a,#2a5a8c)":C.brd,color:name?"#fff":C.dim,border:"none",borderRadius:8,fontSize:12,fontWeight:600,fontFamily:ft,letterSpacing:1,textTransform:"uppercase",boxShadow:name?"0 4px 12px rgba(26,107,74,0.3)":"none",cursor:name?"pointer":"not-allowed"}}>Sign In{name?" as "+name:""}</button>
         {onToggleTheme&&<div style={{textAlign:"center",marginTop:14}}>
           <button onClick={onToggleTheme} style={{padding:"5px 14px",background:"transparent",border:"1px solid "+C.brd,borderRadius:4,color:C.dim,fontSize:10,fontFamily:ft,cursor:"pointer"}}>{theme==="dark"?"\u2600 Light Mode":"\uD83C\uDF19 Dark Mode"}</button>
         </div>}
@@ -2472,7 +2484,7 @@ function App(){
       <div style={{background:C.headerBg,borderBottom:"1px solid "+C.brd,padding:"10px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:50,flexWrap:"wrap",gap:6}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#3a3f4a,#52586a)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>A</div>
+            <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#1a6b4a,#2a5a8c)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>A</div>
             <div><div style={{fontSize:10,letterSpacing:3,color:C.dim,textTransform:"uppercase",fontWeight:500,lineHeight:1}}>Remote Operations</div><div style={{fontSize:13,fontWeight:700,color:C.white,letterSpacing:"-0.3px",lineHeight:1.3}}>ROCC Portal</div></div>
           </div>
           {/* Sync indicator */}
